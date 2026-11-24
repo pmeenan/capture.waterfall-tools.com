@@ -157,8 +157,8 @@ are committed by the human like everything else.
 
 ## Current status
 
-Milestone **M1 (foundation)** is built and committed, and CI is green on
-GitHub; it exits when the owner has made a first deploy. Two outside reviews on
+Milestone **M1 (foundation)** is done: CI is green on GitHub and the site is
+live at capture.waterfall-tools.com since 2026-11-24. Two outside reviews on
 2026-11-24 led to five decisions (D-027 isolation corrections, D-028 the
 end-of-load rule, D-029 waterfall-tools as a submodule, D-030 local
 addresses through the helper, D-031 `Runtime.evaluate` kept for every

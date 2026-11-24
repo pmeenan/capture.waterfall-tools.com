@@ -37,6 +37,32 @@ a stock, enforcing device.
 
 ---
 
+## RE-023: Cloudflare injects its Web Analytics beacon into both sites  (2026-11-24, status: fixed)
+
+**Environment.** Both sites run behind Cloudflare: waterfall-tools.com is proxied to nginx on the
+owner's server, and capture.waterfall-tools.com is served as Worker static assets. Seen on the
+first deploy of the capture site (commit `fe50fa3`).
+
+**Observed.** The HTML both sites serve includes a `<script>` tag for
+`https://static.cloudflareinsights.com/beacon.min.js`. Our build does not add it; Cloudflare
+inserts it at the edge, from a Web Analytics / automatic-setup setting on the zone.
+- **On the capture site** the production CSP (`script-src 'self'`) blocks it, and the console
+  logs one CSP error on every load.
+- **On waterfall-tools.com there is no CSP**, so the beacon runs. That means Cloudflare Web
+  Analytics is collecting page views there today.
+
+**Expected.** No analytics or third-party scripts (D-010). The privacy policy published the same
+day says the sites have no analytics.
+
+**Impact.** The fix is a Cloudflare dashboard setting: turn off Web Analytics, or its automatic
+injection, for the `waterfall-tools.com` zone. Until then the privacy policy's "no analytics" is
+not true on waterfall-tools.com. After the change, check that the HTML no longer contains
+`cloudflareinsights`.
+
+**Fixed, same day.** The owner turned off Web Analytics for the zone. Afterwards neither site's
+HTML contained `cloudflareinsights`, including a cache-busted request. If it comes back, it is
+this setting again.
+
 ## RE-022: Locating and launching Chrome for the helper on macOS and Linux (Q12)  (2026-11-24, status: open)
 
 **Environment.**

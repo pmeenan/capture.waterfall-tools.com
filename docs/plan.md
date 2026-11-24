@@ -277,7 +277,7 @@ The earlier sketch built the extension runner first. This ladder builds the
 Building the helper early does not mean publishing it early: it is not
 released until the security review in M8.
 
-### M1 — Foundation  `in progress`
+### M1 — Foundation  `done`
 
 Scope: npm workspaces and the D-025 toolchain; CI with lint, type check, unit
 tests, build and the licence gate; the owner-run deploy script with a dry
@@ -291,10 +291,10 @@ artifact builder that writes a provisional layout.
       2026-11-24 for commit `4bd1845`, a push to main
       (`.github/workflows/ci.yml`). It also fails on a dependency with a
       known vulnerability (`npm audit`).*
-- [x] Deploy script with dry run; README check commands. *The dry run
-      passes; no real deploy has been made. Since 2026-11-24
-      `wrangler.jsonc` routes `capture.waterfall-tools.com` as a custom
-      domain, created on the first deploy.*
+- [x] Deploy script with dry run; README check commands. *First deploy
+      2026-11-24: commit `fe50fa3` is live at
+      `https://capture.waterfall-tools.com/`, with its custom domain set in
+      `wrangler.jsonc`. The `workers.dev` address is off.*
 - [x] Capture page shell with preflight scaffolding and a place for results.
 - [x] Worker-backed clock; CDP allowlist; CDP client; WebSocket framing.
 - [x] Artifact builder (provisional layout) and local download. *The page
@@ -317,9 +317,12 @@ built artifact converts with the published waterfall-tools package (checked
 through its library entry point in a unit test). Two exit criteria are the
 owner's to complete: a push for CI to run on, and a first deploy so
 the shell is reachable at the production address. *2026-11-24:* CI is
-green on GitHub. What remains is the first deploy:
-`capture.waterfall-tools.com` does not resolve yet. Its custom-domain route
-is now in `wrangler.jsonc`, so the first deploy creates it.
+green on GitHub, and the first deploy is live. On the production URL the page
+built the sample result (76,354 bytes, a 2,354-event trace) under the
+production CSP and offered it for download; the download itself was not
+clicked. **M1 is done.** Found on the live site and fixed the same day:
+Cloudflare had been injecting its Web Analytics beacon into both sites
+(RE-023).
 
 ### M2 — Helper runner, capture pipeline, and a first result in the viewer  `pending`
 
