@@ -55,15 +55,15 @@ on a spike result, not on the owner.
 | Test Chrome on an attached, unrooted Android device from the page | confirmed | Over WebUSB, no local helper process. D-005. Verified end to end by S1 from desktop Chrome on Windows (RE-007). |
 | Accurate network throttling via Chrome's socket-layer emulation | confirmed | Raised by the owner: recent Chromium changes move DevTools emulation into the socket layer — close to netem, Chrome-only. S1 verified it on Android Dev and Canary 160 with `--enable-features=SocketLayerNetworkThrottling` supplied through the command-line file (RE-001, RE-005). Builds before 160.0.8167 fall back to request-level throttling (D-013). |
 | Video capture on Android | confirmed | Raised by the owner as Chrome's native screen recording (the `paulirish/chrome-capture` work). **S1: not available on Android** — on stable 157, Beta 159, and Canary 160 the command fails because Android builds lack the AV1 encoder (RE-002). Per D-014, Android video comes from `adb shell screenrecord` by default, with trace screenshots as an option. |
-| Real NetLog capture on Android | confirmed | Owner's intent, stated conditionally: a Chrome mechanism for reading command-line switches from a non-root location "could solve the real netlog case if it is enabled". S2: it works on the test phone — written to `/sdcard/Download`, pulled over adb, read by waterfall-tools — pending confirmation on a stock phone with SELinux enforcing (RE-009). |
+| Real NetLog capture on Android | confirmed | Owner's intent, stated conditionally: a Chrome mechanism for reading command-line switches from a non-root location "could solve the real netlog case if it is enabled". S2: it works on the test phone — written to `/sdcard/Download`, pulled over adb, read by waterfall-tools — confirmed on a stock Android 17 phone with SELinux enforcing for stable (RE-020). On Android 17, Beta, Dev and Canary read switches only with Chrome's "command line on non-rooted devices" flag on. |
 | ADB-over-WebUSB transport via Tango ADB | confirmed | *triage.* `@yume-chan/adb` + `@yume-chan/adb-daemon-webusb` (MIT, checked — D-002) rather than a home-grown ADB implementation. S1 ran a full capture pass on it without a failure (RE-007). The WebSocket/CDP layer on top of the raw ADB socket is ours to write. |
 | Local `adb` conflict detection and guidance | confirmed | *triage.* A running local adb server claims the USB interface; detect the failure and tell the user what to do. |
 | Any installed browser selectable, with user-chosen wipe level | confirmed | *triage.* Default "Auto": test channels get a full app-data wipe. Stable Chrome gets the cache cleared and nothing else unless the user agrees to more; whether Android stable follows the desktop prompt exactly is not yet confirmed by the owner. D-009, D-027. |
-| Offer to install a test browser from hosted APK packages | confirmed | *triage, added by the owner.* Both open-source Chromium builds and official Chrome channel builds, the latter subject to a redistribution check. Package source, hosting, and install mechanics: Q10. |
-| Guaranteed device cleanup | confirmed | *triage.* Whatever a run changes on the phone (debug-app setting, command-line file, pulled files) is restored on success, failure, cancel, and next connect after an unplug. |
+| Offer to install a test browser from hosted APK packages | confirmed | *triage, added by the owner.* Both open-source Chromium builds and official Chrome channel builds, the latter subject to a redistribution check. Package source, hosting, and install mechanics: Q10. S6 (RE-019) found that the official builds may not be re-hosted. They become links to Play, and Chromium snapshots are fetched from Google's bucket. |
+| Guaranteed device cleanup | confirmed | *triage.* Whatever a run changes on the phone (debug-app setting, command-line file, pulled files) is restored on success, failure, cancel, and next connect after an unplug. One exception: Chrome's command-line flag, once the user has agreed to it, is left on (D-032). |
 | Test on the device's real radio | confirmed | *triage.* An unthrottled mode that records the actual cellular / Wi-Fi connection as the "profile". |
 | Device picker and wake/unlock handling | confirmed | *triage.* Choose among installed browsers; detect a locked or sleeping screen before a run. |
-| Command-line switches without the manual flag | confirmed | *triage.* The test browser is set as the system debug app and switches are read from the command-line file. Verified on Play-installed stable, Beta, Dev and Canary without root (RE-005). Both pieces of device state are saved and restored around every run. |
+| Command-line switches without the manual flag | confirmed | *triage.* The test browser is set as the system debug app and switches are read from the command-line file. Verified on Play-installed stable, Beta, Dev and Canary without root (RE-005). Both pieces of device state are saved and restored around every run. On Android 17, targetSdk 37 channels (Beta, Dev, Canary today) also need Chrome's `#enable-command-line-on-non-rooted-devices` flag (RE-020). It is turned on only with the user's consent and then left on, so the phone remembers the answer. A refusal is remembered per device and channel (D-032). |
 | Capture-side analysis of screenrecord video | confirmed | D-021. Orange start, crop rectangle and kept-frame times are found in the capture page (demux plus WebCodecs, no ffmpeg) and written to the manifest; the raw MP4 goes into the artifact. S7 ran this in 1–2 s per recording (RE-013). |
 | `adb shell screenrecord` as the default Android video source | confirmed | D-014. H.264, whole display, no measurable load-time overhead in S1 (RE-006); 180 s limit per recording. Aligned and reduced with wptagent's orange-frame logic. |
 | Trace screenshots as an optional Android video source | confirmed | D-014. Content-only frames already on the trace clock (RE-004). Opt-in. S7 measured it: about 11–16% longer loads on a light page against none for screenrecord, 1.6–3.2 MB per load, and capture stops silently when the frame budget runs out — about 1.5 s of animation at full size (RE-013). The UI should say so where the option is offered. |
@@ -184,8 +184,10 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
    command-line file, RE-005). The NetLog itself works on the test phone via
    `/sdcard/Download` (RE-009); the app-specific external folder the
    brainstorm suggested does not, because adb cannot read the file. The
-   stop method is decided: plain JSON ended by force-stop (D-016). Still
-   open: confirmation with SELinux enforcing.
+   stop method is decided: plain JSON ended by force-stop (D-016).
+   Confirmed with SELinux enforcing on Android 17 (RE-020). That run found
+   that targetSdk 37 channels ignore the command-line file unless a Chrome
+   flag is on.
 3. **Where does capture logic live for the extension runner?** Either the page
    owns one CDP capture pipeline shared by both runners and the extension is a
    thin bridge, or the extension runs the capture itself. Hinges on MV3
@@ -230,6 +232,20 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
    (CORS, redirects, interstitials, quotas)? The brainstorm's expectation is
    that buckets work directly and Drive and Dropbox need an edge proxy that is
    out of scope (D-005). Also: where user credentials are kept. *Spike S5.*
+   *Drive answered 2026-11-24 (RE-021):* **no proxy needed.**
+   - **Upload:** a static page signs in through Google's token popup
+     (`drive.file`), uploads with a resumable upload, and makes the file
+     public.
+   - **Opening a link:** another browser opens it through the Drive API with
+     a public API key restricted to our origins. That route has CORS and
+     `Range`, and served 120 MB with no interstitial. Decided instead
+     (D-034): links open through the waterfall-tools `/fetch` proxy, which
+     fetches the keyless download URL server-side and will cache it. Local
+     testing gets the same proxy.
+   - **Credentials:** the token stays in page memory for about an hour, with
+     no refresh token.
+   - **S3-compatible buckets and Dropbox** are tested when M7 builds them;
+     S5 closed on Drive (owner's call).
 7. *Answered 2026-11-23 — cold-state policy: user-selectable with an Auto
    default.* See D-009. What each wipe level can technically achieve is still
    covered by S1 and S3.
@@ -249,7 +265,13 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
     store); where Chromium builds come from and who keeps them current; where
     packages are hosted given file sizes and the static-hosting model (D-001);
     and whether install over WebUSB ADB handles modern multi-package Chrome
-    installs. *Spike S6.*
+    installs. *Spike S6.* *Mostly answered 2026-11-24 (RE-019):* official
+    Chrome APKs may not be re-hosted, so those channels hand off to Play.
+    Chromium comes from Google's snapshot bucket, which keeps it current.
+    The page fetches it directly through the CORS-enabled JSON API, so there
+    is no hosting. A snapshot is a single APK, so no multi-package install
+    arises. ChromePublic 160 installed and was driven over CDP. Still open:
+    an install over WebUSB.
 11. **Where does screenrecord video get processed, and what goes in the
     artifact?** D-014 fixes the logic (orange-frame start, sparse frame
     extraction, viewport crop) but ffmpeg cannot be used in the page — its
@@ -275,7 +297,11 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
     *Answered in part 2026-11-23 (RE-014):* Chrome requires the user to
     grant a loopback permission, after which `ws://127.0.0.1` works from an
     HTTPS page; the pairing design is accepted as D-022.
-    Still open: locating Chrome on macOS and Linux. The phone question is
+    Locating Chrome on macOS and Linux: **answered 2026-11-24 (RE-022)**.
+    A fixed list of places per OS found stable Chrome on both, and the
+    debugging-pipe launch with a throwaway profile ran a browser-level
+    trace on each. macOS needs `--use-mock-keychain`. Untested: headed
+    windows, Beta/Dev/Canary, and snap or flatpak builds. The phone question is
     answered — the helper does expose one, in the first release (D-023) —
     and its opt-in gate is designed in M3. The helper may load local and
     private-network addresses (D-030).

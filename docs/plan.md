@@ -27,8 +27,10 @@ needs evidence.
       Q7/Q8 were answered, and the first release was cut after publishing
       (D-009..D-012). A
       second pass the same day settled the last seven proposed rows (D-023,
-      D-024): no row is `proposed` any more. Still open as questions: Q5, Q6,
-      Q9, Q10, plus the stock-phone half of Q2 and the remainder of Q12.
+      D-024): no row is `proposed` any more. On 2026-11-24 Q2's stock-phone
+      half (RE-020), Q6 (S5, RE-021) and the rest of Q12 (RE-022) were
+      answered. Still open as questions: Q5 (the artifact format), Q9 (the
+      test model), and Q10's install over WebUSB (S6).
 - [x] **Spike S1 — Android capture capability matrix (Q1).** On a real
       unrooted phone over WebUSB: reach Chrome's DevTools socket, record a
       trace with the `netlog` category, apply socket-layer throttling, start
@@ -62,7 +64,7 @@ needs evidence.
       Not covered, and carried to later work: a phone whose debug-app
       setting was never set, more than one phone model, and macOS / Linux
       hosts.
-- [ ] **Spike S2 — Real NetLog on unrooted Android (Q2).** Output: a working
+- [x] **Spike S2 — Real NetLog on unrooted Android (Q2).** Output: a working
       command sequence (or a documented dead end) covering how switches are
       applied, the output path, and whether the pulled file is complete.
       *Half answered by S1 (RE-005):* switches are applied on Play-installed
@@ -75,6 +77,13 @@ needs evidence.
       *Not checked off* because the test phone has SELinux permissive; the
       path results need one confirmation on a stock, enforcing phone. The stop
       method is decided: plain JSON ended by force-stop (D-016).
+      *Confirmed on a stock phone 2026-11-24 (RE-020):* on a Pixel 11 with
+      Android 17 and SELinux enforcing, Chrome stable (targetSdk 36) wrote
+      and adb pulled a NetLog in `/sdcard/Download`, in the same shape as
+      RE-009. **New:** Beta, Dev and Canary (targetSdk 37) ignore the
+      command-line file on Android 17 unless `chrome://flags`
+      `#enable-command-line-on-non-rooted-devices` is on. Decided (D-032):
+      it is turned on only with the user's consent, then left on.
 - [x] **Spike S3 — Extension bridge (Q3).** Output: a recommendation between
       "page owns the capture pipeline, extension is a bridge" and "extension
       runs capture", backed by measurements: a multi-minute CDP session
@@ -112,16 +121,50 @@ needs evidence.
       production viewer sends no framing headers, so none need changing.
       To settle with the waterfall-tools work: message names and
       versioning, and a check on the real domains.
-- [ ] **Spike S5 — Publish without a backend (Q6).** Per storage target:
+- [x] **Spike S5 — Publish without a backend (Q6).** Per storage target:
       static-page auth, upload, making the file public, and a cross-origin
       fetch of it from another browser profile. Output: a table of target ×
       (auth ok / upload ok / shareable ok / needs proxy), and where
       credentials are kept.
+      *Drive started 2026-11-24.* The owner made an OAuth client and an API
+      key, and the spike page is in the session scratchpad. Sign-in was
+      blocked in Testing mode: the owner's account could not be added as a
+      test user ("not eligible for designation as a test user"), cause
+      unknown. The route taken is publishing the app to production. With
+      `drive.file` alone that should need no Google review, but it does need
+      a home page, privacy policy and terms on the authorized domain
+      `waterfall-tools.com`. Those pages are drafted in the waterfall-tools
+      submodule (its Phase 19) and wait on the owner's commit and deploy.
+      *Drive done 2026-11-24 (RE-021)*, after the owner put the privacy
+      policy and terms on waterfall-tools.com and published the app:
+
+      | Target | Auth | Upload | Shareable | Needs proxy |
+      | --- | --- | --- | --- | --- |
+      | Google Drive | ok: GIS token popup, `drive.file`, about 1 h token in page memory | ok: resumable, 120 MB in 30 s | ok: "anyone with link" and a Drive API fetch with a public API key, CORS and `Range`, 120 MB with no interstitial | no |
+
+      The keyless `drive.usercontent.google.com` route is not usable from a
+      page: curl sees CORS headers, but Chrome does not. Links will open
+      through the waterfall-tools `/fetch` proxy instead (D-034). *Checked off
+      2026-11-24 on the owner's call:* Drive answers the spike. The
+      S3-compatible and Dropbox targets are tested when M7 builds them.
 - [ ] **Spike S6 — Test-browser install from APKs (Q10).** Output: whether
       official Chrome channel APKs may be re-hosted (check the actual terms,
       not memory), a source for Chromium builds, a hosting location that fits
       the file sizes, and a working install of each over WebUSB ADB on a real
       device — or a documented reason it cannot work.
+      *Mostly run 2026-11-24 (RE-019).* Official Chrome APKs may not be
+      re-hosted (Google and Play terms), so those channels become links to
+      Play. Chromium snapshots (BSD-3) come straight from Google's
+      `chromium-browser-snapshots` bucket, whose JSON API URL allows CORS
+      and `Range`. A page can pull one APK out of the zip and inflate it in
+      about 1.5 s. Nothing needs hosting, and Cloudflare's 25 MiB file limit
+      would rule it out anyway. Install through adb's streamed install
+      worked first time for a 159 MB snapshot APK, in 12 s. With the owner's
+      go-ahead, ChromePublic 160.0.8182.0 then replaced the phone's Chromium
+      150 build. It installed in 15 s, and CDP, the command-line file,
+      isolated contexts and a browser-level trace all worked. The DevTools
+      socket only opened once first run was disabled. *Not checked off:* the
+      install has not run over WebUSB.
 - [x] **Spike S7 — screenrecord processing in the browser (Q11).** Record a
       page load on the phone with the orange-frame start, then in a page:
       demux the MP4, decode with WebCodecs, find the viewport, drop
@@ -165,9 +208,14 @@ needs evidence.
       runner writes one.
 - [ ] Test-model design (Q9): median metric, and the scripting model — how
       much of WebPageTest's script command set to adopt.
-- [ ] Schedule the waterfall-tools cross-repo dependencies with the owner
+- [x] Schedule the waterfall-tools cross-repo dependencies with the owner
       (features.md, "Cross-repo dependencies") — at minimum the parser and the
       `postMessage` API, since M2 cannot show a result without them.
+      *Scheduled 2026-11-24.* The owner's rule: "postMessage should be built
+      at the start of the milestone that needs it". That is the start of M2,
+      before the helper work. The first parser version is already part of
+      M2's scope. The full-spec parser belongs to M6 and load by reference
+      to M7, the milestones that list them.
 - [x] First full draft of [architecture.md](architecture.md).
       *Written 2026-11-23; not yet reviewed by the owner.* Module names, the
       interfaces and the repository layout in it are proposals.
@@ -239,14 +287,14 @@ over an abstract transport, WebSocket framing for the ADB socket, and an
 artifact builder that writes a provisional layout.
 
 - [x] Workspaces, build, lint, type check, vitest, licence gate.
-- [ ] CI on pull requests and on pushes to main. *Workflow written
-      (`.github/workflows/ci.yml`); it has not run yet. Since 2026-11-24 it
-      also runs on every push to main, which is how commits arrive here, and
-      fails on a dependency with a known vulnerability (`npm audit`). The
-      same steps pass locally as `npm run check`.*
+- [x] CI on pull requests and on pushes to main. *Green on GitHub on
+      2026-11-24 for commit `4bd1845`, a push to main
+      (`.github/workflows/ci.yml`). It also fails on a dependency with a
+      known vulnerability (`npm audit`).*
 - [x] Deploy script with dry run; README check commands. *The dry run
-      passes; no real deploy has been made, and the custom domain is not
-      configured in `wrangler.jsonc`.*
+      passes; no real deploy has been made. Since 2026-11-24
+      `wrangler.jsonc` routes `capture.waterfall-tools.com` as a custom
+      domain, created on the first deploy.*
 - [x] Capture page shell with preflight scaffolding and a place for results.
 - [x] Worker-backed clock; CDP allowlist; CDP client; WebSocket framing.
 - [x] Artifact builder (provisional layout) and local download. *The page
@@ -268,7 +316,10 @@ check, build, licence gate (after D-026), deploy dry run. The trace inside a
 built artifact converts with the published waterfall-tools package (checked
 through its library entry point in a unit test). Two exit criteria are the
 owner's to complete: a push for CI to run on, and a first deploy so
-the shell is reachable at the production address.
+the shell is reachable at the production address. *2026-11-24:* CI is
+green on GitHub. What remains is the first deploy:
+`capture.waterfall-tools.com` does not resolve yet. Its custom-domain route
+is now in `wrangler.jsonc`, so the first deploy creates it.
 
 ### M2 — Helper runner, capture pipeline, and a first result in the viewer  `pending`
 
@@ -285,7 +336,9 @@ Added after the review of 2026-11-24:
   artifact format and take one result from the helper into the embedded
   viewer: the format's first version and its parser, and the open
   `postMessage` load, are written in waterfall-tools through the submodule
-  (D-029, D-011, D-020). This is the part of the old "View" milestone that
+  (D-029, D-011, D-020). **The `postMessage` load comes first in M2**, per
+  the owner's rule that it is built at the start of the milestone that
+  needs it. This is the part of the old "View" milestone that
   does not depend on the other runners.
 - **Controlled test pages.** A local test server with pages whose behavior
   is known in advance: a fixed set of requests, redirects, resources
@@ -345,7 +398,8 @@ review of 2026-11-24). Upload one result and open its shareable link from a
 different browser profile. Publishing is a success criterion in the vision
 and its answer could change the provider design, so it is tested before two
 more runners are built on the assumption that it works. Needs the owner's
-account and credentials for that target.
+account and credentials for that target. *Done for Google Drive on
+2026-11-24 (RE-021): it works with no proxy.*
 
 ### M3 — Android runner  `pending`
 
@@ -353,7 +407,8 @@ Scope: obtaining an `Adb` connection over WebUSB and over the dev bridge;
 the device layer — save and restore of device state, launch with switches,
 DevTools socket discovery, file pull; the same pipeline over the ADB socket
 transport; the browser picker; guidance when a local adb server holds the
-phone. Also the **design of the gate for the helper's adb route** (D-023),
+phone; detecting whether a channel applies switches, and the consent prompt
+for Chrome's command-line flag where it does not (D-032). Also the **design of the gate for the helper's adb route** (D-023),
 moved here from M8 after the second review of 2026-11-24: the dev bridge
 and the helper are one program, so the opt-in — proposed as a start-up flag
 naming one device, with a plain statement in the terminal — is agreed with
@@ -362,7 +417,10 @@ onto an unguarded mode at release time.
 
 Waiting on: a phone attached to the development machine; the owner's
 agreement to the gate design. For a public claim
-of support: one pass on a stock phone with SELinux enforcing (RE-009).
+of support: one pass on a stock phone with SELinux enforcing was done on
+Android 17 (RE-020). It found that Beta, Dev and Canary there need a
+Chrome flag before they read switches. It is turned on with the user's
+consent and left on (D-032); M3 builds the prompt.
 
 **Exit criteria:** an agent runs a test on the phone through the dev bridge
 unattended and gets a result whose trace converts with waterfall-tools; the
@@ -435,12 +493,27 @@ against the published spec.
 ### M7 — Publish  `pending`
 
 Scope: the storage providers — download, Google Drive, S3-compatible bucket,
-Dropbox — in the order spike S5 recommends; "publish" returning a shareable
+Dropbox — Drive first, since spike S5 proved it (RE-021); "publish" returning a shareable
 viewer link where the target allows; the publish warning and optional
 redaction; resumable uploads; provider settings kept in the browser.
 
-Waiting on: spike S5, which needs the owner's OAuth client ids and accounts
-(Q6); from waterfall-tools, loading a published result by reference.
+Waiting on: accounts and credentials for the S3-compatible and Dropbox
+targets, each tested as it is built (S5 ran on Drive only); from
+waterfall-tools, loading a published result by reference.
+
+Before Drive ships, the owner's Google OAuth app must be in production. That
+needs `waterfall-tools.com` as an authorized domain (done), the privacy
+policy and terms live on it (drafted in the waterfall-tools submodule), and
+`capture.waterfall-tools.com` added to the client's authorized JavaScript
+origins.
+
+Published links open through the waterfall-tools `/fetch` proxy, not from the
+page (D-034). That gives M7 three waterfall-tools tasks, built at the start
+of M7:
+- The Worker's format sniff learns the result zip.
+- Caching of published results in the Worker.
+- A local `/fetch` for the dev viewer that runs the same Worker code, so
+  localhost testing takes the production path.
 
 **Exit criteria:** for each storage target the owner has uploaded a result;
 for at least one target a published link opens the result in waterfall-tools
@@ -503,6 +576,5 @@ Scripted multi-step tests, custom request headers, blocked hosts.
 | Commits in the waterfall-tools repository, made through the submodule (D-029) | the viewer part of M2 |
 | Artifact spec beyond the minimal first version (Q5, D-011) | M6, and final field names in M5 |
 | waterfall-tools: parser for the spec, open `postMessage` load, load by reference | M6, M7 |
-| Spike S5 for one target: an account and credentials (Q6) | the start of M3; the remaining targets block M7 |
-| A stock Android phone for one confirmation pass (RE-009) | public Android claims in M3 and M5 |
+| Accounts and credentials for S3-compatible and Dropbox, tested when built (S5 closed on Drive, RE-021) | M7 |
 | Web Store developer account and npm publishing rights | M8 |

@@ -270,7 +270,10 @@ a secret pairs once or for as long as the helper runs, and where the page
 keeps it for a reconnect once the fragment is gone.
 
 The URL filter allows any `http(s)` address, local and private ones
-included; that is deliberate (D-030).
+included; that is deliberate (D-030). It also allows `about:blank` and
+exactly `chrome://flags`, which the Android runner needs to turn on
+Chrome's command-line flag after the user consents (D-032, D-033). No other
+`chrome:` page is allowed.
 
 The capture page reaches it only after the user grants Chrome's
 loopback-network permission; until then the connection simply waits, so the

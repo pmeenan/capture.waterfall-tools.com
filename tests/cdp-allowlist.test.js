@@ -37,6 +37,16 @@ describe('CDP allowlist', () => {
         'blob:https://example.com/1234',
         'ftp://example.com/',
         'about:config',
+        // Only the flags page itself is allowed (D-033): not its sub-pages or look-alikes.
+        'chrome://flags/deprecated',
+        'chrome://flags?x=1',
+        'chrome://flags@evil/',
+        'chrome://evil@flags/',
+        'chrome://flags:1/',
+        'chrome://flagsx/',
+        'chrome://version/#flags',
+        'chrome-untrusted://flags/',
+        'about:flags',
         '',
         'not a url',
     ])('refuses to load %s', (url) => {
@@ -52,11 +62,15 @@ describe('CDP allowlist', () => {
         expect(vetCommand('Page.navigate', { url: { toString: () => 'https://example.com/' } })).toMatch(/may only load/);
     });
 
-    it('allows http, https and the blank page only', () => {
+    it('allows http, https, the blank page and the flags page only', () => {
         expect(isUrlAllowed('http://example.com/')).toBe(true);
         expect(isUrlAllowed('https://example.com/a?b=c#d')).toBe(true);
         expect(isUrlAllowed('HTTPS://EXAMPLE.COM/')).toBe(true);
         expect(isUrlAllowed('about:blank')).toBe(true);
+        expect(isUrlAllowed('chrome://flags')).toBe(true);
+        expect(isUrlAllowed('chrome://flags/')).toBe(true);
+        expect(isUrlAllowed('chrome://flags/#enable-command-line-on-non-rooted-devices')).toBe(true);
+        expect(vetCommand('Page.navigate', { url: 'chrome://flags/' })).toBeNull();
     });
 
     it('stays small enough to review', () => {

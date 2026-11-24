@@ -6,8 +6,10 @@
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist/site"
-  }
-  // The custom domain, capture.waterfall-tools.com, is NOT configured here yet. Attach it in the
-  // Cloudflare dashboard, or add a "routes" entry with "custom_domain": true, once the first
-  // deploy has been checked on its workers.dev address.
+  },
+  // The production origin. A custom domain makes Cloudflare create the DNS record and the
+  // certificate on deploy; waterfall-tools.com is a zone on the same account.
+  "routes": [
+    { "pattern": "capture.waterfall-tools.com", "custom_domain": true }
+  ]
 }

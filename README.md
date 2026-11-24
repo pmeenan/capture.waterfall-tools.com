@@ -54,7 +54,8 @@ tree.
 ## How this project is built
 
 Almost all code and documentation is written by AI agents working from the
-project docs, directed and reviewed by a human who makes every commit.
+project docs, directed and reviewed by a human who makes every commit or
+directs an agent to make it (D-035).
 
 ## Start here
 

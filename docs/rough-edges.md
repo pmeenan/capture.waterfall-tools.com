@@ -37,6 +37,263 @@ a stock, enforcing device.
 
 ---
 
+## RE-022: Locating and launching Chrome for the helper on macOS and Linux (Q12)  (2026-11-24, status: open)
+
+**Environment.**
+- **Linux:** Ubuntu 26.04.1 LTS, x86_64, Chrome stable 158.0.8127.36 from Google's `.deb`. No
+  snap or flatpak Chrome, and no display. Node 24.18.1 is installed through nvm, so it is on the
+  PATH only in a login shell.
+- **macOS:** 27.0.1, arm64 (Apple Silicon), Chrome stable 158.0.8127.88 in `/Applications`. No
+  Node. The test SSH'd in as one user while another was logged in at the console. Reached over
+  SSH from the Linux box. Both machines had only the stable channel.
+
+**Measurement.** A throwaway script did on each machine what the helper will do:
+1. Looked for every channel in the usual places (list below).
+2. Launched each hit with `--remote-debugging-pipe`, a new `--user-data-dir` in the temp folder,
+   and `--headless=new`.
+3. Ran `Browser.getVersion`, `Target.createTarget` and `attachToTarget`, a browser-level
+   `Tracing.start` with `netlog`, navigated to `example.com`, read `document.title`, then sent
+   `Tracing.end` and `Browser.close`.
+4. Deleted the profile.
+
+Linux ran it in Node. On the Mac it was a Perl port, because the Mac has no Node.
+
+**Places to look.**
+- **macOS:** `/Applications` and `~/Applications`, `<Name>.app/Contents/MacOS/<Name>`, for
+  `Google Chrome`, `Google Chrome Beta`, `Google Chrome Dev`, `Google Chrome Canary` and
+  `Chromium`.
+- **Linux:** `google-chrome-stable`, `google-chrome`, `google-chrome-beta`,
+  `google-chrome-unstable`, `google-chrome-canary`, `chromium` and `chromium-browser` on the
+  PATH, plus `/opt/google/chrome*/chrome`. `/usr/bin/google-chrome` points through
+  `/etc/alternatives` to the `/opt/google/chrome/google-chrome` wrapper script.
+- **Deduplicate by real path.**
+
+**Observed.** Every step worked on both machines.
+
+| Host | Executable | First reply | Browser-level trace | Page |
+| --- | --- | --- | --- | --- |
+| Linux | `/opt/google/chrome/google-chrome` (wrapper script) | 398 ms | ok | ok |
+| Linux | `/opt/google/chrome/chrome` (binary) | 256 ms | ok | ok |
+| macOS | `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome` | 627 ms | ok | ok |
+
+- The Linux wrapper script passes the pipe file descriptors through to Chrome.
+- No profile folders or Chrome processes were left behind.
+
+**Things that will bite.**
+- **macOS: pass `--use-mock-keychain`.** Without it, a fresh profile may ask the login Keychain
+  for Chrome's storage key, and that dialog appears on the console user's screen. That is
+  standard automation practice; not testing it without the flag was deliberate, because someone
+  else was at the console.
+- **Fds 3 and 4 must survive `exec`.** Node's `stdio` array does this for you. A hand-rolled
+  launcher (Perl here) has to clear close-on-exec on them. The first Mac attempt failed with
+  "pipe closed" for that reason, not because of Chrome.
+- **Node from nvm** is only on the PATH in an interactive shell. That is fine for `npx` typed by
+  a user, but worth knowing for scripted runs.
+
+**Not tested.**
+- Headed windows: neither box had a display session for the SSH user.
+- Beta, Dev and Canary: not installed on either machine.
+- Snap or flatpak Chrome, where sandboxing is expected to complicate pipe launches and temporary
+  profiles.
+- Intel Macs.
+
+**Impact.** Q12's last open part is answered. The helper can find Chrome by a fixed list of
+places on each OS, with no `chrome-launcher` dependency, and the debugging-pipe launch works on
+Windows, macOS and Linux.
+
+## RE-021: Google Drive from a static page — what works, and one route that only looks like it does (spike S5)  (2026-11-24, status: open)
+
+**Environment.** The built-in Chromium-based browser pane of the Claude desktop app, on a
+Windows 11 host. Spike page served from `http://localhost:8766`, using Google Identity Services'
+token client (`google.accounts.oauth2.initTokenClient`), with the `drive.file` scope only. The
+owner's OAuth client was published to production. A Drive API key was restricted to the Drive
+API and to `localhost` website origins.
+
+**Sign-in.**
+- **Testing mode was blocked.** The owner's own account could not be added as a test user
+  ("not eligible for designation as a test user"), and sign-in failed with "has not completed
+  the Google verification process". The cause is unknown.
+- **Publishing to production fixed it, with no Google review for `drive.file` alone.**
+  Production needs a home page, privacy policy and terms on an authorized domain. These are
+  now on waterfall-tools.com.
+- **The token client needs a popup that the user opens.** The pane refused a popup started
+  from script.
+- **The result is an access token that lives only in page memory.** It reported
+  `expires_in: 3599` and there was no refresh token. Getting another token means another
+  popup, so the token lasts about an hour.
+
+**Upload and sharing, with the token.**
+- **Resumable upload works from a page.** The `Location` header of the session-creating POST
+  is readable, so CORS is fine there.
+- **Speeds:** 2 MB uploaded in 1.8 s, and 120 MB (125,829,120 bytes) in 30.3 s.
+- **Making a file public works.** `POST files/{id}/permissions` with `{role: 'reader', type:
+  'anyone'}` returned 200, and the file became "anyone with the link".
+
+**Signed-out fetch, as another person's browser would make it.**
+
+| Route | Result |
+| --- | --- |
+| `www.googleapis.com/drive/v3/files/{id}?alt=media&key=<API key>`, from an allowed origin | **works**: 200 with CORS, and `Range` passes preflight. 2 MB took 0.4 s and 120 MB took 1.0 s in the pane, with no virus-scan page at 120 MB |
+| same URL, from an origin the key does not allow | 403 "Requests from referer … are blocked" (CORS headers present, so the page can read the error) |
+| same URL without a key | 403 "missing a valid API key" |
+| `drive.google.com/uc?id=…&export=download` (the `webContentLink`) | 403 HTML page |
+| `drive.usercontent.google.com/download?id=…&export=download` | **looks like it works from curl** (200, `Access-Control-Allow-Origin: *`), but **fails from a real page**: Chrome reports no `Access-Control-Allow-Origin` header, with or without credentials or redirects |
+
+**Lessons.**
+- **Check CORS from a browser, not curl.** The server answers the two differently.
+- **The API key is public and has to travel with the viewer.** Its website restriction must
+  list every viewer origin, which means `waterfall-tools.com`, plus every capture origin. A
+  self-hosted viewer needs its own key.
+
+**Cleanup.** Both test files were deleted with the page's token (Drive's `DELETE` skips the
+trash), and a search through the Drive connector confirmed none were left. The spike page and
+its copy of the key were deleted.
+
+**Impact.** Uploading needs no proxy: only the page and the user's popup. An expired token
+means another popup before uploading. Opening a published link works from a page with a public,
+origin-restricted API key. The owner chose instead to route it through the waterfall-tools
+`/fetch` proxy, using the keyless URL, so that it can be cached (D-034).
+
+## RE-020: Stock phone, Android 17 — command-line file ignored by targetSdk 37 Chrome  (2026-11-24, status: open)
+
+**Environment.** Pixel 11 (`cubs`), Android 17, build
+`CP4A.261205.008.B2`, `user` / `release-keys`, `ro.debuggable=0`, **SELinux
+Enforcing**, not rooted. Remote USB through the adb server. Before the run
+debug-app had never been set and no command-line file existed. Chrome stable
+158.0.8127.92 is a preinstalled system app (`/product/app/Chrome-Stub`,
+updated) with targetSdk 36. Beta 159.0.8154.33, Dev 160.0.8171.0 and Canary
+160.0.8181.0 are Play installs with targetSdk 37. All commands ran as the adb
+`shell` user.
+
+**What works as on the permissive phone (RE-005, RE-009).** On stable, the
+debug-app setting plus `/data/local/tmp/chrome-command-line` applied the
+switches. `--log-net-log=/sdcard/Download/<file>` was written under
+enforcing SELinux (owner `u0_a324:media_rw`, mode 660). `adb pull` read it
+as `shell`. After `am force-stop` it was 1.4 MB and 11,372 events, missing
+only the closing `]}`, with every line complete: the same shape as RE-009.
+The DevTools socket opens on every channel whether or not debug-app is set.
+
+**What does not.** Beta, Dev and Canary, all targetSdk 37, **ignored the
+command-line file**. No NetLog was written, and a `--user-agent` switch did
+not apply. That held for six Canary launches, by both `about:blank` and VIEW
+intents. Each channel also kept going straight into its debugging socket.
+The cause is not file access. Canary's renderer runs in plain
+`untrusted_app` (stable runs in `untrusted_app_34`), and it displayed the
+file's contents at `file:///data/local/tmp/chrome-command-line`. The
+platform policy grants `untrusted_app_all` read on `shell_data_file`, and no
+AVC denial was logged. **Turning on `chrome://flags`
+`#enable-command-line-on-non-rooted-devices` in Canary made it honour the
+file.** The UA switch applied and a 775 KB NetLog appeared in
+`/sdcard/Download`. So it is Chrome's debug-app check that fails for
+targetSdk 37 builds on Android 17. That is inferred, not traced in source.
+On Android 13 the same channels honoured the file (RE-005), so the change
+probably comes from the Android 17 / targetSdk 37 pair. Stable will hit it
+when it moves to targetSdk 37.
+
+**Anomaly.** One NetLog named in the command-line file (last written
+11:57:42) appeared from a Canary launch made while the flag was still at
+Default. The five Default-flag launches made afterwards to reproduce it did
+not apply the file. Unexplained.
+
+**Restored.** The flag is back to Default, the command-line file is
+deleted, debug-app is cleared, every NetLog from the run is deleted, all
+four channels are force-stopped, and no forwards remain.
+
+**Impact.** On current Android, switches (NetLog, the socket-layer
+throttling feature of D-013, `--disable-fre`) reach Beta, Dev and Canary
+only if the user, or the runner through CDP on `chrome://flags`, turns on a
+flag Chrome labels "DANGEROUS". That is a persistent change to a browser the
+user may live in (D-009). Without it, Android Beta/Dev/Canary fall back to
+trace-level netlog and request-level throttling. Decided in D-032: the flag
+is turned on only with consent, then left on. Untested:
+whether a snapshot Chromium (RE-019) behaves the same on Android 17.
+
+## RE-019: Test-browser packages — terms, source, hosting, install (spike S6)  (2026-11-24, status: open)
+
+**Environment.** Windows 11 host, Node 22 and the built-in Chromium-based
+browser pane of the Claude desktop app (page served from `127.0.0.1`); moto
+g play 2023, Android 13, armeabi-v7a, over the adb server (not WebUSB).
+Chromium snapshot r1753238 (V8 16.0.119).
+
+**Terms (read 2026-11-24, not legal advice).** Official Chrome APKs may not
+be re-hosted. The Google Terms of Service, which the Chrome Additional Terms
+sit under, say "You may not copy, modify, distribute, sell, or lease"
+Google's software (policies.google.com/terms), and the Play terms allow
+"personal, non-commercial use only" (play.google/play-terms). No Google
+statement grants Chrome-for-Android redistribution, and Chrome for Testing
+ships no Android build. Chromium snapshots are BSD-3 plus third-party
+licences (about:credits), so they are redistributable with notices; they
+are built without proprietary codecs (`proprietary_codecs` is false for
+unbranded builds), so H.264 / AAC / MP3 in page content may not play —
+unchecked on a device. "Chromium" is a trademark: don't present a copy as
+official.
+
+**Source.** `chromium-browser-snapshots` on Google Cloud Storage:
+`Android/<rev>/chrome-android.zip` (armeabi-v7a; `Android_Arm64/` holds
+arm64), `LAST_CHANGE` names the newest revision. The 275 MB zip holds four
+deflated APKs: ChromePublic (121 MB → 246 MB), ContentShell (83 → 159 MB),
+SystemWebView (66 → 117 MB), SystemWebViewShell (5 MB). ChromePublic is a
+single standalone APK — no Trichrome library or splits — so the
+multi-package worry of Q10 does not arise for Chromium. Play-installed Chrome
+is the multi-package case, and it cannot be hosted anyway.
+
+**CORS — use the JSON API URL.** `storage.googleapis.com/...` and
+`commondatastorage.googleapis.com/...` send **no** CORS headers. The JSON API
+download URL does, and allows `Range`:
+`https://www.googleapis.com/download/storage/v1/b/chromium-browser-snapshots/o/Android%2F<rev>%2Fchrome-android.zip?alt=media`
+(answers 206 with `Access-Control-Allow-Origin` echoing the page origin and
+`Content-Range` exposed). The listing
+`https://www.googleapis.com/storage/v1/b/chromium-browser-snapshots/o?prefix=Android/<rev>/`
+is also CORS-enabled. A page can therefore read the zip's central directory
+from the last 64 KB, range-fetch one entry, and inflate it with
+`DecompressionStream('deflate-raw')`. Measured in the browser pane:
+ChromePublic fetched and inflated in 1.45 s (246 MB; SHA-256 computed in a
+further 0.35 s) on a fast connection.
+
+**Hosting.** Cloudflare Workers static assets allow 25 MiB per file
+(developers.cloudflare.com/workers/platform/limits, modified 2026-11-19), so
+the APKs cannot be served from this site. Fetching straight from Google's
+bucket needs no hosting of ours, keeps D-001, and stays current by
+`LAST_CHANGE`. Snapshots don't auto-update and are best-effort.
+
+**Install.** `adb install` (streamed install, the same
+`cmd package install -S` path a WebUSB client uses) installed
+SystemWebViewShell and ContentShell from the extracted APKs first time, with
+no prompt on the phone; ContentShell (159 MB) took 12.4 s. ContentShell
+started, opened `@content_shell_devtools_remote`, and answered
+`/json/version` (Chrome/999.0.0.0). Both were uninstalled afterwards.
+Snapshot APKs are signed with the public Chromium debug key (signature
+`1ab8683d`), the same key as the phone's existing local Chromium 150 build:
+a snapshot ChromePublic would update that in place, and a package signed
+with any other key would fail with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`.
+Downgrading needs a debuggable package, which these are not.
+
+**ChromePublic, same day, with the owner's go-ahead.** `adb install -r`
+updated the phone's local Chromium 150 build in place to snapshot
+160.0.8182.0 (versionCode 818200000, targetSdk 37) in 14.9 s. The phone has
+no way back short of uninstalling. The first launch stopped on
+`FirstRunActivity`, and **no DevTools socket opened until first run was
+skipped.** With `_ --disable-fre --no-first-run` in the command-line file
+(debug-app set to `org.chromium.chrome`), `@chrome_devtools_remote` came up
+within seconds. `/json/version` reported Chrome/160.0.8182.0, and a
+`--user-agent` switch in the same file took effect, so RE-005's switch
+route works for snapshots. `Target.createBrowserContext`, `createTarget` in
+that context, a browser-level `Tracing.start` with `netlog`, `Runtime.evaluate`
+and `disposeBrowserContext` all succeeded. The isolated-context failure
+RE-003 saw on a Chromium 150 dev build does not occur on this snapshot.
+Socket-layer throttling on the snapshot is still unchecked. Afterwards the
+command-line file was deleted; nobody recorded whether one existed before
+the run. debug-app was already `org.chromium.chrome` and remains so.
+
+**Not done.** The install has not been run over WebUSB, which needs the adb
+server stopped and a device pick by the user.
+
+**Impact.** The install feature offers Chromium snapshots, fetched by the
+page from Google's bucket; official channels are a link to their Play
+listings. A freshly installed Chromium must be started with first run
+disabled (through the command-line file) or it never opens its DevTools
+socket.
+
 ## RE-018: Findings from a second outside review of M1  (2026-11-24, status: worked-around)
 
 A second independent agent reviewed the repository. Every finding was checked

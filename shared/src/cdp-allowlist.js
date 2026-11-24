@@ -50,7 +50,13 @@ const URL_METHODS = new Set(['Page.navigate', 'Target.createTarget']);
 
 /**
  * May the pipeline load this URL in the browser under test?
- * Only web URLs and the blank page: never `file:`, `chrome:`, `data:` and the like.
+ * Web URLs, the blank page, and `chrome://flags` - nothing else: never `file:`, `data:`, or any
+ * other `chrome:` page.
+ *
+ * `chrome://flags` is here so the Android runner can turn on Chrome's command-line flag after the
+ * user agrees (D-032, D-033). Together with `Runtime.evaluate` it lets a paired page change any
+ * Chrome flag in the browser under test, so only the flags page itself is allowed: not its
+ * sub-pages, a query, a port or user info. A fragment is fine; it only scrolls to one flag.
  * @param {unknown} url
  * @returns {boolean}
  */
@@ -58,11 +64,26 @@ export function isUrlAllowed(url) {
     if (typeof url !== 'string') return false;
     if (url === 'about:blank') return true;
     try {
-        const { protocol } = new URL(url);
-        return protocol === 'http:' || protocol === 'https:';
+        const parsed = new URL(url);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') return true;
+        return isFlagsPage(parsed);
     } catch {
         return false;
     }
+}
+
+/**
+ * @param {URL} url
+ * @returns {boolean}
+ */
+function isFlagsPage(url) {
+    return url.protocol === 'chrome:'
+        && url.hostname === 'flags'
+        && url.username === ''
+        && url.password === ''
+        && url.port === ''
+        && (url.pathname === '' || url.pathname === '/')
+        && url.search === '';
 }
 
 /**
@@ -73,6 +94,6 @@ export function isUrlAllowed(url) {
  */
 export function vetCommand(method, params) {
     if (!ALLOWED_METHODS.has(method)) return `CDP method not on the allowlist: ${method}`;
-    if (URL_METHODS.has(method) && !isUrlAllowed(params?.url)) return `${method} may only load http(s) URLs or about:blank`;
+    if (URL_METHODS.has(method) && !isUrlAllowed(params?.url)) return `${method} may only load http(s) URLs, about:blank or chrome://flags`;
     return null;
 }
