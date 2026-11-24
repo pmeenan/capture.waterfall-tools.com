@@ -11,8 +11,10 @@ control.
 Planned scope (see [docs/features.md](docs/features.md) for the full ledger,
 including what is still being triaged):
 
-- **Two ways to run a test**, both Chrome: on an attached Android device over
-  WebUSB, or in your local desktop browser driven by an extension.
+- **Three ways to run a test**, all Chrome: on an attached Android device over
+  WebUSB; in your local desktop browser driven by an extension; or, when you
+  need more than the extension can capture, in a dedicated Chrome launched by
+  a small local helper you start with `npx`.
 - **One result file.** Every test produces a single self-contained zip in an
   open, manifest-based format that records how it was captured.
 - **Your storage, not ours.** Download the result, or upload it to Google

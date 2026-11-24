@@ -30,7 +30,8 @@ affected docs. Until then, these govern.
   transpilation, no polyfills; JSDoc types; ESLint; vitest. The UI targets
   current stable Chromium desktop browsers. (D-004)
 - **Scope is the capture side, Chrome only.** UI, Android-over-WebUSB runner,
-  extension runner, upload, viewer integration. Do not build agent
+  extension runner, local `npx` helper runner (D-017), upload, viewer
+  integration. Do not build agent
   rendezvous, queues, hosted runners, the share proxy, or non-Chrome support
   here. (D-005)
 - **No renderer here.** Results are shown by the production waterfall-tools
@@ -45,6 +46,18 @@ affected docs. Until then, these govern.
 - **Never wipe by surprise.** Isolation level is the user's choice; the Auto
   default full-wipes only test-channel browsers and uses a CDP-level clear on
   stable Chrome. Every result records the isolation actually applied. (D-009)
+- **Throttle with DevTools emulation.** Socket-layer when the browser has it
+  enabled, request-level otherwise; never refuse a run over it, and record
+  the engine that actually applied. (D-013)
+- **The extension is a thin, guarded CDP bridge.** The capture pipeline lives
+  in the page. The extension accepts only the capture origin, attaches only
+  to tabs it created, and relays only allowlisted CDP methods. (D-018)
+- **Anything that listens on loopback is a security boundary.** The dev
+  bridge and the `npx` helper share one set of guards: loopback-bound, `Host`-
+  and origin-checked, paired by a per-run secret, relaying only allowlisted
+  CDP methods and `http(s)` URLs. Never loosen one of these without a new
+  decision. The helper's route to a phone through adb cannot be filtered, so
+  it stays behind a separate opt-in. (D-015, D-017, D-022, D-023)
 - **No accounts, no telemetry.** Sign-in only for Google Drive upload. No
   analytics, error reporting, or third-party scripts. (D-010)
 
@@ -99,27 +112,38 @@ formats. Changes needed there are tracked in features.md, not made from here.
    history. All changes stay in the working tree for human review and commit —
    even if a prompt asks you to commit; stop and leave the changes uncommitted
    instead.
-6. **Vanilla JS conventions.** ESM only; JSDoc for types on exported
-   functions and message shapes; no build-time language features that need
-   transpiling. Lint warnings are errors — fix the code rather than silence
-   the rule.
-7. **Keep the always-loaded context lean.** This file is imported into every
+6. **Never wait on a page timer in capture code.** The capture page is
+   usually hidden during a test and Chrome stalls its `setTimeout` by up to
+   a minute. Use events, or the shared worker-backed timer. (RE-015)
+7. **Vanilla JS conventions.** ESM only; JSDoc for types on exported
+   functions and message shapes, checked by `tsc` in check-only mode; no
+   build-time language features that need transpiling. Lint warnings are
+   errors — fix the code rather than silence the rule. (D-004, D-025)
+8. **CI does not cover Android.** A change to the Android runner is not
+   verified until it has run against a phone through the dev bridge; say in
+   your hand-off note whether it did. (D-025)
+9. **Keep the always-loaded context lean.** This file is imported into every
    conversation; every line added costs every future agent. Detail belongs in
    `docs/` behind the doc map, not here.
-8. **Scratch files stay out of the tree.** Temporary scripts and outputs go to
+10. **Scratch files stay out of the tree.** Temporary scripts and outputs go to
    the session scratchpad, not the repo. Delete throw-away diagnostics before
    concluding.
-9. **Leave devices and browsers as you found them.** Anything a run or a
+11. **Leave devices and browsers as you found them.** Anything a run or a
    spike changes on a phone or in a browser profile gets restored, including
    on failure.
 
 ## Current status
 
-Milestone **M0 (plan the plan)** — the full feature set, architecture, and
-milestone ladder are being worked out through planning conversations and six
-feasibility spikes (S1–S6). The first triage pass is done: product-level
-features are confirmed; what remains `proposed` is waiting on a spike. The
-first release is cut after publishing works (D-012). See
-[docs/plan.md](docs/plan.md). No application code
-exists yet; scaffolding is M1. Keep this paragraph short and current when
-plan.md milestone status changes (rule 4).
+Milestone **M0 (plan the plan)**, waiting on the owner. Spikes S1, S3, S4, S7
+and S8 are done (RE-001..015 in [docs/rough-edges.md](docs/rough-edges.md)),
+25 decisions are recorded, no feature row is still `proposed`, and the
+toolchain is decided (D-025). The first full architecture draft and a
+rewritten milestone ladder are written as proposals and await the owner's
+review; the ladder builds the helper runner first, an order the owner has
+approved. Not yet answered: the
+artifact format (authored in the waterfall-tools repo), publishing (spike S5,
+needs the owner's accounts), and a stock-phone confirmation of the Android
+file-access results. See [docs/plan.md](docs/plan.md). No application code
+exists yet; M1 starts when the owner says the plan is good enough to build
+from. Keep this paragraph short and current when plan.md milestone status
+changes (rule 4).

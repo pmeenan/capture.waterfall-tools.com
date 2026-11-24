@@ -49,6 +49,10 @@ browsers — is deliberately not part of this repository yet (D-005).
   local helper process installed, and see its waterfall.
 - A user can do the same against their own desktop Chrome after installing one
   extension.
+- A user who needs what the extension cannot capture — socket-layer
+  throttling before Chrome enables it by default, a real NetLog, a fresh
+  profile — can get it by starting one local helper with `npx`, and that
+  helper cannot be driven by any page other than the capture site.
 - A finished result opens in the production waterfall-tools viewer without the
   result leaving the user's machine.
 - A user can publish a result to at least one storage target they control and

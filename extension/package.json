@@ -1,0 +1,8 @@
+{
+  "name": "@capture/extension",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The MV3 bridge extension (D-018). Placeholder until milestone M4.",
+  "license": "Apache-2.0",
+  "type": "module"
+}

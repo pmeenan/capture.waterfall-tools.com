@@ -1,0 +1,11 @@
+{
+  "name": "@capture/site",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The capture page served from capture.waterfall-tools.com.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "dependencies": {
+    "@capture/shared": "*"
+  }
+}
