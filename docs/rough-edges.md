@@ -37,6 +37,33 @@ a stock, enforcing device.
 
 ---
 
+## RE-016: M1 tooling surprises  (2026-11-23, status: worked-around)
+
+**Environment.** Windows 11, Node 24.13.1, npm 11.8.0; eslint 10.15.0,
+typescript 7.0.2, vitest 5.1.1, rollup 4.68.8, vite 8.3.8, wrangler 4.167.0.
+
+- **`connect-src 'self'` blocks `fetch()` of a `blob:` URL.** Under the
+  site's Content-Security-Policy a page cannot fetch a blob it created
+  itself ("Refused to connect"). Reading a `Blob` directly (`.stream()`,
+  `.arrayBuffer()`) and offering one through a download link are not
+  affected. Code that needs to re-read a result must keep the `Blob`, not
+  its URL.
+- **A `shell: true` spawn splits the Node path on Windows.**
+  `spawnSync(process.execPath, …, { shell: true })` fails when Node lives in
+  `C:\Program Files`; npm, a `.cmd` shim, is the only command that needs a
+  shell. `scripts/deploy.js` uses one only for that.
+- **wrangler brings LGPL binaries and reports usage by default.** Its
+  dependency tree includes sharp's prebuilt libraries (D-026), and it sends
+  usage data to Cloudflare unless `WRANGLER_SEND_METRICS=false` is set, which
+  the deploy script does. Its first-run notice is printed either way.
+- **ESLint 10's minimatch is BlueOak-1.0.0**, not ISC as in earlier majors
+  (D-026).
+- **`waterfall-tools` ships no type declarations**, so importing it under
+  `tsc --checkJs` needs a `@ts-expect-error` on the import line.
+- **Node's type definitions are not a given.** They were present only as
+  another tool's transitive dependency, at a version that tool rejected;
+  `@types/node` is now a direct development dependency.
+
 ## RE-015: Page timers stall when the capture page is hidden; workers, the extension, and messages do not  (2026-11-23, status: worked-around)
 
 **Environment.** Windows 11, Chrome Canary 160.0.8180.0, headful, the spike

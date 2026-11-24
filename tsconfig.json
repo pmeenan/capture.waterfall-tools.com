@@ -1,0 +1,18 @@
+{
+  "//": "Type CHECK only (D-025). There are no .ts sources and nothing is emitted; types live in JSDoc.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2023",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noImplicitOverride": true
+  },
+  "include": ["shared/src", "site/src", "scripts", "tests", "*.config.js"]
+}

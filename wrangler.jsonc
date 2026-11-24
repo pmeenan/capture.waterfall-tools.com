@@ -1,0 +1,13 @@
+{
+  // Static assets only: no Worker script, no bindings, no backend (D-001).
+  // Deployed by the project owner with "npm run deploy" (D-025).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "capture-waterfall-tools",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist/site"
+  }
+  // The custom domain, capture.waterfall-tools.com, is NOT configured here yet. Attach it in the
+  // Cloudflare dashboard, or add a "routes" entry with "custom_domain": true, once the first
+  // deploy has been checked on its workers.dev address.
+}

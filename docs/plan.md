@@ -238,12 +238,19 @@ needs: the worker-backed clock (RE-015), the CDP allowlist, the CDP client
 over an abstract transport, WebSocket framing for the ADB socket, and an
 artifact builder that writes a provisional layout.
 
-- [ ] Workspaces, build, lint, type check, vitest, licence gate.
-- [ ] CI on pull requests.
-- [ ] Deploy script with dry run; README check commands.
-- [ ] Capture page shell with preflight scaffolding and a place for results.
-- [ ] Worker-backed clock; CDP allowlist; CDP client; WebSocket framing.
-- [ ] Artifact builder (provisional layout) and local download.
+- [x] Workspaces, build, lint, type check, vitest, licence gate.
+- [ ] CI on pull requests. *Workflow written (`.github/workflows/ci.yml`);
+      it has not run yet, since nothing has been pushed as a pull request. The
+      same steps pass locally as `npm run check`.*
+- [x] Deploy script with dry run; README check commands. *The dry run
+      passes; no real deploy has been made, and the custom domain is not
+      configured in `wrangler.jsonc`.*
+- [x] Capture page shell with preflight scaffolding and a place for results.
+- [x] Worker-backed clock; CDP allowlist; CDP client; WebSocket framing.
+- [x] Artifact builder (provisional layout) and local download. *The page
+      builds the sample result and offers it through a download link under
+      the production Content-Security-Policy; the link itself was not
+      clicked during verification.*
 
 Waiting on: nothing to start. The artifact layout stays provisional, and is
 labelled as such in what it writes, until the spec exists (Q5, D-011).
@@ -253,6 +260,13 @@ the production URL after the owner deploys it; the page builds a result zip
 from a canned trace and saves it, and that trace converts with the published
 waterfall-tools command-line tool; unit tests cover the clock, the allowlist
 and the framing.
+
+**Status 2026-11-23.** Built and passing locally: 97 unit tests, lint, type
+check, build, licence gate (after D-026), deploy dry run. The trace inside a
+built artifact converts with the published waterfall-tools package (checked
+through its library entry point in a unit test). Two exit criteria are the
+owner's to complete: a pull request for CI to run on, and a first deploy so
+the shell is reachable at the production address.
 
 ### M2 — Helper runner and the capture pipeline  `pending`
 

@@ -35,9 +35,49 @@ M0 feature triage the same day; D-013 and D-014 followed spike S1, and
 D-015 and D-016 followed the transport and NetLog spikes, and D-017 to D-019 the
 extension spike; D-020 followed the hand-off spike and D-021 the video-processing spike.
 D-022 is the helper security design; D-023 and D-024 closed the triage of
-proposed features, and D-025 fixed the toolchain.
+proposed features, and D-025 fixed the toolchain. D-026 came out of the first run of the
+licence gate, in M1.
 
 ---
+
+## D-026: Licence policy — BlueOak-1.0.0 allowed; a development-only exception for wrangler  (2026-11-23, status: accepted; amends D-002)
+
+**Decision.** Two changes to the dependency policy of D-002:
+
+1. **BlueOak-1.0.0 joins the allowed list**, for any dependency.
+2. **wrangler stays a development dependency**, with a recorded exception for
+   the packages it pulls in that are outside the list: the `@img/sharp*`
+   image libraries (LGPL-3.0-or-later) and `@speed-highlight/core`
+   (CC0-1.0). The exception covers deploy tooling only. None of these may
+   ever be part of anything the project ships — the site bundle, the
+   extension, or the helper package.
+
+Everything else in D-002 stands, including "no GPL-family licence" for
+anything that ships.
+
+**Context.** Decided by the project owner when the licence gate of D-025 first
+ran, in M1, and failed on 17 packages. ESLint 10 (chosen in D-004) depends on
+minimatch 11 and `@isaacs/nonrecursive-glob-match`, both BlueOak-1.0.0, a
+permissive licence D-002 did not name; the owner chose to allow the licence
+generally over pinning ESLint 9 or excepting just those two packages.
+wrangler, Cloudflare's deploy tool, reaches sharp through miniflare; the
+owner chose a development-only exception over keeping wrangler out of the
+repository, which was the scaffolding agent's recommendation. Licences were
+read from each package's own metadata by the gate.
+
+**Consequences.**
+- The gate (`scripts/check-licenses.js`) encodes both: BlueOak-1.0.0 in its
+  allowed set, and two name patterns in its exception list. It prints every
+  package admitted by an exception on each run, so the list stays visible.
+- The exception is by package name, not by licence: another LGPL or CC0
+  package arriving by a different route still fails the gate.
+- Nothing enforces "never shipped" yet beyond the bundler only including what
+  is imported. When the helper becomes a published package (M2, M8), its own
+  dependency tree must pass the gate with no exceptions at all.
+- An agent may not add or widen an exception; that is the owner's call.
+
+**Reopen if.** One of the excepted packages would become part of a shipped
+artifact; or wrangler stops being the deploy tool.
 
 ## D-025: Toolchain  (2026-11-23, status: accepted)
 
@@ -833,7 +873,7 @@ accurate. Every hand-off is an uncommitted working tree plus a short note.
 it, or hard-to-reverse deploys — at which point mandatory reviews may be
 warranted.
 
-## D-002: Apache-2.0, permissive dependencies only  (2026-11-23, status: accepted)
+## D-002: Apache-2.0, permissive dependencies only  (2026-11-23, status: accepted; amended by D-026)
 
 **Decision.** The project is licensed Apache-2.0. Dependencies must be under
 MIT, BSD, Apache-2.0, ISC, or MPL terms. No GPL-family license in any form.

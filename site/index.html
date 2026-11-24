@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Capture — waterfall-tools</title>
+    <meta name="description" content="Run a page-load test on your own hardware and view it in waterfall-tools.">
+    <link rel="stylesheet" href="/src/app.css">
+</head>
+<body>
+    <header class="site-header">
+        <h1>Capture</h1>
+        <p class="tagline">Run a page-load test on your own hardware and view it in <a href="https://waterfall-tools.com/" rel="noopener">waterfall-tools</a>.</p>
+    </header>
+
+    <main>
+        <p class="notice" role="status">
+            <strong>Under construction.</strong> Nothing here can run a test yet. This page currently checks what your browser supports and builds a sample result file.
+        </p>
+
+        <section aria-labelledby="runners-heading">
+            <h2 id="runners-heading">Ways to run a test</h2>
+            <ul class="cards" id="runners"></ul>
+        </section>
+
+        <section aria-labelledby="preflight-heading">
+            <h2 id="preflight-heading">What this browser supports</h2>
+            <ul class="checks" id="preflight" aria-live="polite"><li>Checking…</li></ul>
+        </section>
+
+        <section aria-labelledby="sample-heading">
+            <h2 id="sample-heading">Sample result</h2>
+            <p>Builds a result file in this page from a recorded trace of <code>example.com</code>. Nothing is uploaded.</p>
+            <p><button type="button" id="build-sample">Build sample result</button></p>
+            <div id="sample-output" aria-live="polite"></div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <p>Capture <span id="version"></span> · <a href="https://github.com/pmeenan/capture.waterfall-tools.com" rel="noopener">Source</a> · No analytics, no accounts.</p>
+    </footer>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>

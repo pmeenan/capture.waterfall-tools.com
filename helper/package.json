@@ -1,0 +1,8 @@
+{
+  "name": "@capture/helper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The local helper started with npx (D-017, D-022). Placeholder until milestone M2; not published before its security review.",
+  "license": "Apache-2.0",
+  "type": "module"
+}

@@ -24,9 +24,27 @@ including what is still being triaged):
 
 ## Status
 
-**Pre-code.** The project is in M0 — planning and feasibility spikes. Nothing
-here is runnable yet, and several of the platform capabilities the design
-relies on are still being verified. See [docs/plan.md](docs/plan.md).
+**Early.** The first milestone is built: the page shell, the shared building
+blocks, and the tooling. Nothing can run a test yet — the first runner is the
+next milestone. See [docs/plan.md](docs/plan.md).
+
+## Development
+
+Node 22 or newer.
+
+```
+npm ci
+npm run dev            # serve the site with Vite at http://127.0.0.1:5173
+npm run check          # lint, type check, tests, build, licence gate (what CI runs)
+```
+
+Individually: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`,
+`npm run licenses`. After a build, `node scripts/preview.js` serves `dist/site`
+with the same response headers as production.
+
+Deploying is done by the project owner: `npm run deploy:dry-run` shows what
+would be uploaded, `npm run deploy` uploads it, and only from a clean working
+tree.
 
 ## How this project is built
 

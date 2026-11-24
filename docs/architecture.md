@@ -351,6 +351,7 @@ draft's proposal:
 | `extension/` | The MV3 bridge |
 | `helper/` | The `npx` helper and dev bridge |
 | `tests/` | Unit tests and the agent-driven integration harnesses |
+| `scripts/` | Build, local preview with production headers, licence gate, deploy |
 | `docs/` | This documentation |
 
 Three deliverables ship from one repository: static files to Cloudflare, an

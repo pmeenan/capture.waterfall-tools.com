@@ -23,8 +23,9 @@ affected docs. Until then, these govern.
   `capture.waterfall-tools.com`. No server-side test execution, database, or
   result storage; tests run on hardware the user provides. (D-001)
 - **Apache-2.0; permissive dependencies only.** MIT / BSD / Apache-2.0 / ISC /
-  MPL. No GPL in any form. Check a dependency's license against its own
-  package metadata before adding it. (D-002)
+  MPL / BlueOak-1.0.0. No GPL family in anything that ships. `npm run
+  licenses` is the gate; its two exceptions cover deploy tooling only, and
+  only the owner may add or widen one. (D-002, D-026)
 - **Agents never commit.** The human is the sole committer. (D-003)
 - **Vanilla JS, ESM only.** No framework, no TypeScript build, no
   transpilation, no polyfills; JSDoc types; ESLint; vitest. The UI targets
@@ -63,11 +64,20 @@ affected docs. Until then, these govern.
 
 ## Repository layout
 
-| Path    | What lives there |
-| ------- | ---------------- |
+| Path | What lives there |
+| --- | --- |
+| `site/` | The capture page: `index.html`, `src/`, and `public/` (sample trace, `_headers` with the Content-Security-Policy) |
+| `shared/src/` | Used by more than one deliverable: `clock`, `cdp-allowlist`, `cdp-client`, `ws-framing`, `zip`, `artifact` |
+| `extension/` | The MV3 bridge — placeholder until M4 |
+| `helper/` | The `npx` helper and dev bridge — placeholder until M2 |
+| `tests/` | vitest unit tests; `helpers/` holds test doubles |
+| `scripts/` | `build.js`, `preview.js`, `check-licenses.js`, `deploy.js` |
 | `docs/` | Vision, plan, architecture, decisions, features, rough edges, workflow |
 
-The application scaffolding lands in M1 — update this table when it does.
+Checks: `npm run check` runs lint, type check, tests, build and the licence
+gate — the same steps as CI. `npm run dev` serves the site; `npm run build`
+then `node scripts/preview.js` serves the built site with its production
+headers. Deploying is the owner's (`npm run deploy`).
 
 ## Doc map — pull what the task needs, not everything
 
@@ -134,16 +144,14 @@ formats. Changes needed there are tracked in features.md, not made from here.
 
 ## Current status
 
-Milestone **M0 (plan the plan)**, waiting on the owner. Spikes S1, S3, S4, S7
-and S8 are done (RE-001..015 in [docs/rough-edges.md](docs/rough-edges.md)),
-25 decisions are recorded, no feature row is still `proposed`, and the
-toolchain is decided (D-025). The first full architecture draft and a
-rewritten milestone ladder are written as proposals and await the owner's
-review; the ladder builds the helper runner first, an order the owner has
-approved. Not yet answered: the
-artifact format (authored in the waterfall-tools repo), publishing (spike S5,
-needs the owner's accounts), and a stock-phone confirmation of the Android
-file-access results. See [docs/plan.md](docs/plan.md). No application code
-exists yet; M1 starts when the owner says the plan is good enough to build
-from. Keep this paragraph short and current when plan.md milestone status
-changes (rule 4).
+Milestone **M1 (foundation)**, built and waiting on the owner. M0 exited on
+2026-11-23. The workspaces, toolchain, shared modules (clock, CDP allowlist
+and client, WebSocket framing, zip, provisional artifact builder), the capture
+page shell, the licence gate and the deploy script exist and pass
+`npm run check`. Still to happen for M1 to exit: CI running on a pull
+request, and a first deploy by the owner. Next is M2, the helper runner and
+the capture pipeline. Open from M0: the artifact format (authored in the
+waterfall-tools repo), publishing (spike S5), and a stock-phone confirmation
+of the Android file-access results. See [docs/plan.md](docs/plan.md). Keep
+this paragraph short and current when plan.md milestone status changes
+(rule 4).

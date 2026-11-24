@@ -1,0 +1,29 @@
+name: CI
+
+# The gate for pull requests (D-025). Android is not covered here: changes to the Android runner
+# are verified against a real phone through the dev bridge (AGENTS.md).
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run: npm run build
+      - run: npm run licenses
+      # The unattended desktop integration jobs (helper pairing, extension over a debugging pipe)
+      # join this workflow in M2 and M4, when there is something for them to run.

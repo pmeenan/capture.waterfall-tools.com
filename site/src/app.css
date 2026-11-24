@@ -1,0 +1,199 @@
+:root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1b1f24;
+    --muted: #5b6470;
+    --line: #d5dae1;
+    --panel: #f5f7fa;
+    --accent: #0b5cad;
+    --ok: #1a7f37;
+    --warn: #9a6700;
+    --no: #b3261e;
+    font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #14171b;
+        --fg: #e6e9ee;
+        --muted: #9aa4b2;
+        --line: #333a44;
+        --panel: #1c2127;
+        --accent: #6cb0ff;
+        --ok: #4ac26b;
+        --warn: #d4a72c;
+        --no: #ff7b72;
+    }
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+}
+
+.site-header,
+main,
+.site-footer {
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 0 1.25rem;
+}
+
+.site-header {
+    padding-top: 2rem;
+}
+
+h1 {
+    margin: 0;
+    font-size: 2rem;
+}
+
+h2 {
+    margin: 2rem 0 0.75rem;
+    font-size: 1.25rem;
+}
+
+.tagline,
+.site-footer {
+    color: var(--muted);
+}
+
+.site-footer {
+    margin-top: 3rem;
+    padding-bottom: 2rem;
+    font-size: 0.875rem;
+}
+
+a {
+    color: var(--accent);
+}
+
+code {
+    font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    font-size: 0.9em;
+}
+
+.notice {
+    margin: 1.5rem 0 0;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--line);
+    border-left: 4px solid var(--warn);
+    border-radius: 6px;
+    background: var(--panel);
+}
+
+.cards,
+.checks {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.cards {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+}
+
+.cards li {
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+}
+
+.cards h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1rem;
+}
+
+.cards p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+}
+
+.cards .status {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--warn);
+}
+
+.checks li {
+    display: grid;
+    grid-template-columns: 5.5rem 1fr;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.checks .state {
+    font-weight: 600;
+}
+
+.checks .state[data-state='yes'] {
+    color: var(--ok);
+}
+
+.checks .state[data-state='no'] {
+    color: var(--no);
+}
+
+.checks .state[data-state='info'] {
+    color: var(--warn);
+}
+
+.checks .detail {
+    display: block;
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+button {
+    padding: 0.55rem 1rem;
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    background: var(--accent);
+    color: var(--bg);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}
+
+.result {
+    margin-top: 0.75rem;
+    padding: 0.9rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+}
+
+.result dl {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.25rem 1rem;
+    margin: 0 0 0.75rem;
+}
+
+.result dt {
+    color: var(--muted);
+}
+
+.result dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.error {
+    color: var(--no);
+}
