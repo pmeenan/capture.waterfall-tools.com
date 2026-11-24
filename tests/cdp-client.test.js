@@ -186,4 +186,77 @@ describe('CdpClient', () => {
         transport.onClose?.();
         await expect(waiting).resolves.toEqual({ first: true });
     });
+
+    it('rejects a command, and forgets it, when the transport throws on send', async () => {
+        transport.send = () => {
+            throw new Error('socket is closing');
+        };
+        await expect(cdp.send('Browser.getVersion')).rejects.toThrow('socket is closing');
+        // Nothing is left waiting: closing has no command to reject, so it must not throw or hang.
+        cdp.close();
+        expect(clock.pending).toBe(0);
+    });
+
+    it('times a command out when asked to, and drops the late answer', async () => {
+        const result = cdp.send('Tracing.end', {}, undefined, { timeoutMs: 5000 });
+        const assertion = expect(result).rejects.toThrow(new TimeoutError('Tracing.end timed out after 5000 ms'));
+        await vi.advanceTimersByTimeAsync(5000);
+        await assertion;
+        expect(() => transport.reply({ id: 1, result: {} })).not.toThrow();
+        expect(clock.pending).toBe(0);
+    });
+
+    it('leaves no timer behind when a timed command is answered', async () => {
+        const result = cdp.send('Browser.getVersion', {}, undefined, { timeoutMs: 5000 });
+        transport.reply({ id: 1, result: { product: 'Chrome' } });
+        await expect(result).resolves.toEqual({ product: 'Chrome' });
+        expect(clock.pending).toBe(0);
+    });
+
+    it('cancels a command through an abort signal', async () => {
+        const controller = new AbortController();
+        const result = cdp.send('Tracing.end', {}, undefined, { signal: controller.signal, timeoutMs: 5000 });
+        const assertion = expect(result).rejects.toThrow('Tracing.end was cancelled');
+        controller.abort();
+        await assertion;
+        expect(clock.pending).toBe(0);
+        await expect(cdp.send('Tracing.end', {}, undefined, { signal: controller.signal })).rejects.toThrow('was cancelled');
+        expect(transport.sent).toHaveLength(1);
+    });
+
+    it('delivers an event to the other listeners when one throws', async () => {
+        const errors = vi.fn();
+        cdp = new CdpClient(transport, { clock, onListenerError: errors });
+        cdp.onEvent(() => {
+            throw new Error('listener bug');
+        });
+        const waiting = cdp.waitFor('Page.loadEventFired');
+        expect(() => transport.reply({ method: 'Page.loadEventFired', params: { timestamp: 1 } })).not.toThrow();
+        await expect(waiting).resolves.toEqual({ timestamp: 1 });
+        expect(errors).toHaveBeenCalledTimes(1);
+        expect(errors.mock.calls[0][0]).toMatchObject({ message: 'listener bug' });
+    });
+
+    it('fails a wait whose predicate throws, without disturbing other waits', async () => {
+        const broken = cdp.waitFor('Page.loadEventFired', {
+            predicate: () => {
+                throw new Error('predicate bug');
+            },
+        });
+        const fine = cdp.waitFor('Page.loadEventFired');
+        const assertion = expect(broken).rejects.toThrow('predicate bug');
+        transport.reply({ method: 'Page.loadEventFired', params: {} });
+        await assertion;
+        await expect(fine).resolves.toEqual({});
+        expect(clock.pending).toBe(0);
+    });
+
+    it('ends waits and timed commands when the clock stops, since their timeouts can no longer fire', async () => {
+        const waiting = expect(cdp.waitFor('Page.loadEventFired')).rejects.toThrow('disposed');
+        const command = expect(cdp.send('Tracing.end', {}, undefined, { timeoutMs: 5000 })).rejects.toThrow('disposed');
+        clock.dispose();
+        await waiting;
+        await command;
+        await expect(cdp.waitFor('Page.loadEventFired')).rejects.toThrow('disposed');
+    });
 });

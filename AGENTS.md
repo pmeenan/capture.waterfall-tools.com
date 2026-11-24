@@ -58,13 +58,13 @@ affected docs. Until then, these govern.
   the engine that actually applied. (D-013)
 - **The extension is a thin, guarded CDP bridge.** The capture pipeline lives
   in the page. The extension accepts only the capture origin, attaches only
-  to tabs it created, and relays only allowlisted CDP methods. (D-018)
+  to tabs it created, and relays only allowlisted CDP methods. (D-018, D-031)
 - **Anything that listens on loopback is a security boundary.** The dev
   bridge and the `npx` helper share one set of guards: loopback-bound, `Host`-
   and origin-checked, paired by a per-run secret, relaying only allowlisted
   CDP methods and `http(s)` URLs. Never loosen one of these without a new
   decision. The helper's route to a phone through adb cannot be filtered, so
-  it stays behind a separate opt-in. (D-015, D-017, D-022, D-023)
+  it stays behind a separate opt-in. (D-015, D-017, D-022, D-023, D-030)
 - **No accounts, no telemetry.** Sign-in only for Google Drive upload. No
   analytics, error reporting, or third-party scripts. (D-010)
 
@@ -154,13 +154,16 @@ are committed by the human like everything else.
 ## Current status
 
 Milestone **M1 (foundation)** is built and committed; it exits when CI has
-run on a pull request and the owner has made a first deploy. An outside
-review on 2026-11-24 led to three decisions (D-027 isolation corrections,
-D-028 the end-of-load rule, D-029 waterfall-tools as a submodule) and to
-plan changes: M2 now also takes a first result into the embedded viewer and
-is verified against controlled test pages, and spike S5 for one storage
-target runs before M3. Next is M2. Open: the full artifact format,
-publishing, a stock-phone confirmation of the Android file-access results,
-and where cookie-deletion consent is held (D-027). See
+run on GitHub and the owner has made a first deploy. Two outside reviews on
+2026-11-24 led to five decisions (D-027 isolation corrections, D-028 the
+end-of-load rule, D-029 waterfall-tools as a submodule, D-030 local
+addresses through the helper, D-031 `Runtime.evaluate` kept for every
+runner) and to plan changes: M2 also takes a first
+result into the embedded viewer, is verified against controlled test pages,
+and gains a minimal diagnostics log and a pinned Chrome in CI; spike S5 for
+one storage target runs before M3; the helper's adb gate is designed in M3;
+a desktop video timing spike precedes M5. Next is M2. Open: the full
+artifact format, publishing, a stock-phone confirmation of the Android
+file-access results, and where cookie-deletion consent is held (D-027). See
 [docs/plan.md](docs/plan.md). Keep this paragraph short and current when
 plan.md milestone status changes (rule 4).

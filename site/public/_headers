@@ -4,7 +4,7 @@
 #   script-src 'self'   no inline or third-party script (D-010)
 #   worker-src blob:    the worker-backed clock is created from a blob (RE-015)
 #   connect-src 'self'  widened when a runner needs it, not before
-#   frame-src           widened when the embedded viewer lands (M6)
+#   frame-src           widened when the embedded viewer lands (M2): the production viewer origin only
 /*
   Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff

@@ -43,7 +43,7 @@ on a spike result, not on the owner.
 | CPU throttling with per-machine calibration | confirmed | *triage.* Short benchmark on first setup to derive a machine-specific multiplier rather than a fixed 4x. |
 | Local result history | confirmed | *triage.* Keep recent results in the capture site's own storage (OPFS / IndexedDB) so they can be re-opened or published later. Re-opening loads the result there and posts it to the embedded viewer (D-020). |
 | Open / re-publish an existing artifact | confirmed | *triage.* Drop in a result zip to view or publish it without re-running. |
-| Capture diagnostics log | confirmed | *triage.* Exportable log of adb / CDP steps for a failed run. Must not leave the machine on its own (D-010). |
+| Capture diagnostics log | confirmed | *triage.* Exportable log of adb / CDP steps for a failed run. Must not leave the machine on its own (D-010). A minimal version — run steps kept in memory, with a download button — is built in M2; the rest stays in M10. |
 | Scripted / multi-step tests, custom headers, blocked hosts | confirmed | *triage.* Classic WebPageTest test options. The largest item on this list; the scripting language and command set are undefined — see Q9. |
 | No analytics or telemetry | confirmed | *triage.* No analytics, error reporting, or third-party scripts on the site. D-010. |
 | Look and feel matches the waterfall-tools viewer | confirmed | Owner, 2026-11-24: the two should "feel like a coherent product". The viewer's stylesheet is the source of truth; see [architecture.md](architecture.md) §3.12. Light theme only, because the viewer is. |
@@ -105,7 +105,7 @@ on a spike result, not on the owner.
 | Single self-contained result `.zip` in a new manifest-based format | confirmed | D-007. Layout and fields: Q5. |
 | Environment / provenance block in the manifest | confirmed | Runner, throttling engine, profile isolation actually applied (D-009), browser build — so results captured different ways are not compared blindly. Exact fields: Q5. |
 | Written spec with a format version, and a validator | confirmed | *triage.* The spec lives in the waterfall-tools repo (D-011). Where the validator code lives follows the spec. |
-| STORE-mode entries for already-compressed payloads | confirmed | *triage.* Gzipped traces and MP4 files are stored uncompressed inside the zip so a reader can fetch single members with HTTP range requests. A requirement for the artifact spec (Q5). |
+| STORE-mode entries for already-compressed payloads | confirmed | *triage.* Gzipped traces and MP4 files are stored uncompressed inside the zip so a reader can fetch single members with HTTP range requests. A requirement for the artifact spec (Q5). It follows that text payloads are gzipped before they go in: a NetLog is stored as `netlog.json.gz`, about a tenth of its size, and the builder refuses an uncompressed trace or NetLog. |
 | Orange-frame start marker for screenrecord video | confirmed | D-014: wptagent's method — a `#DE640D` cover removed immediately before navigation, so the first non-orange frame is time zero. S7: detection is reliable and the cover also gives the crop rectangle for free; the video clock starts 30–70 ms late, about 200 ms on a cold first load (RE-013). Not needed for trace screenshots. Whether desktop native recording needs the same is untested. |
 
 ## Upload and publish
@@ -142,7 +142,7 @@ work items for the waterfall-tools project and need the owner's scheduling.
 | Input parser for the new manifest zip | every viewing path | D-007. Must handle multi-run and first/repeat view results. |
 | `postMessage` load API in the viewer, open to any embedder | embedded view | D-006, D-020. Today's API is a same-origin global and throws `SecurityError` across origins (RE-012). No allowlist and no storing on the viewer side; the viewer treats the payload as untrusted and replies only to the sender's origin. |
 | Loading a published result by reference (for example a Drive file id) | published view | Shape depends on Q6. Open to anyone with the link, full-page or embedded by any site (D-020). |
-| Fetch-proxy format sniff updated for the new zip | published view via proxy | The existing waterfall-tools Worker only proxies formats it recognises. |
+| Fetch-proxy format sniff updated for the new zip | published view via proxy | The existing waterfall-tools Worker only proxies formats it recognises. It also refuses a body over 100 MiB and any `Range` request, so a large result, or a range read of one, works only against storage the browser can fetch directly. |
 | Filmstrip / video display from a raw recording plus manifest metadata | video capture being worth anything | D-021. The viewer decodes H.264 from the MP4 and applies the manifest's start offset, crop rectangle and frame times. Decoding verified in Chrome only (RE-013). Who computes visual metrics is still open. |
 | Scoping a whole-session NetLog to the tested page | real NetLog on Android | A NetLog covers the browser session; most entries from a simple load were the browser's own background requests (RE-009). Could instead be done on the capture side. |
 | Tolerating an unterminated NetLog | real NetLog on Android | Already works in waterfall-tools 0.4.0 (RE-009); listed so it is not regressed. D-016 relies on it unless the capture side repairs the file (Q5). ndjson input is not needed. |
@@ -240,7 +240,10 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
    still open are the median metric, alignment of desktop native recording,
    and the scripting model — whether to adopt WebPageTest's
    script commands, a subset, or something else, and how custom headers and
-   blocked hosts map onto CDP.
+   blocked hosts map onto CDP. *Added 2026-11-24:* desktop recording
+   alignment gets a spike before M5; and before M9, check whether applying
+   socket-layer throttling again between first and repeat view discards the
+   warm cache, since each throttling profile has its own (RE-001).
 10. **Test-browser install from APKs.** Whether official Chrome channel APKs
     may be re-hosted at all (if not, that half becomes a hand-off to the
     store); where Chromium builds come from and who keeps them current; where
@@ -274,4 +277,19 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
     HTTPS page; the pairing design is accepted as D-022.
     Still open: locating Chrome on macOS and Linux. The phone question is
     answered — the helper does expose one, in the first release (D-023) —
-    and its opt-in gate still has to be designed.
+    and its opt-in gate is designed in M3. The helper may load local and
+    private-network addresses (D-030).
+13. **May the extension's relay run script in the tested page?** *(raised by
+    the second review, 2026-11-24.)* *Answered 2026-11-24: yes — it stays on
+    the one allowlist for every runner, with the risk recorded (D-031).*
+    The question as it stood: `Runtime.evaluate` is on the one
+    allowlist all three runners share. Today only the Android orange cover
+    uses it (D-014). Scripted tests (M11) will need it on every runner, as
+    WebPageTest scripts run arbitrary script in the page. The cost is in
+    the extension's normal-profile fallback (D-027): there a compromised
+    capture origin could go from seeing cookies in a trace to acting as the
+    user on any site they are signed in to. In an incognito window or the
+    helper's throwaway profile there is no such data to reach. Choices: keep
+    it everywhere and record the risk; or leave it off the extension's
+    relay until scripting is built and decide then how script may run in a
+    signed-in profile (incognito only, or with the user's consent per test).

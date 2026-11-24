@@ -37,6 +37,48 @@ a stock, enforcing device.
 
 ---
 
+## RE-018: Findings from a second outside review of M1  (2026-11-24, status: worked-around)
+
+A second independent agent reviewed the repository. Every finding was checked
+against the code before it was acted on; these are the ones worth
+remembering.
+
+- **A worker that fails to start says so once, on `error`, and then nothing.**
+  The preflight check timed the worker clock out *using the worker clock*, so
+  a worker blocked by policy would have left the page on "Checking…" for
+  ever. `Clock` now listens for `error` and `messageerror` and rejects
+  everything waiting on it, as it does on `dispose()`; the check also has a
+  page-timer limit, the one deliberate exception to AGENTS.md rule 6.
+- **`Array.prototype.shift` on a long array is not constant time.** The
+  WebSocket frame decoder shifted used chunks off its queue one at a time.
+  Measured on Node 24.13: a 16 MB frame arriving in 64-byte chunks took
+  34.5 s, and 137 ms once the used chunks were removed with one `splice`;
+  4 MB took 4.6 s against 45 ms. A trace arrives as frames of this size.
+- **One throwing listener starved the rest.** A CDP event was delivered in a
+  plain loop, so a listener that threw kept the event from every listener
+  after it, including a wait for the load event. Each is now called in its
+  own `try`.
+- **A command sent on a closing transport leaked.** `send()` registered the
+  command before calling the transport; if the transport threw, the entry
+  stayed until `close()`. `send()` also takes a timeout and an abort signal
+  now. There is still no default timeout: `Page.navigate` on a throttled
+  connection can legitimately take a long time.
+- **npm marks a lockfile entry `dev` only when nothing outside
+  devDependencies reaches it.** The licence gate now applies its recorded
+  exceptions only to such entries, so the same package arriving as a runtime
+  dependency fails. The old `licenses` array in a `package.json` does not
+  say whether its entries are alternatives; it is now read as "all apply".
+- **The viewer's fetch proxy has limits a result can hit**: 100 MiB per
+  body, and no `Range` requests (`waterfall-tools/cloudflare-worker/worker.js`).
+  A NetLog is now gzipped before it goes into the artifact.
+- **`npm audit`** found nothing in the 352 packages of the lockfile on this
+  date; it is now a CI step.
+- **Check that a submodule is really in the commit.** `.gitmodules` reached
+  commit `f6107b1` but the submodule's own entry did not, so a fresh clone
+  could not have fetched it and the deploy script's clean-tree check failed.
+  `git ls-files -s waterfall-tools` prints a line starting `160000` when it
+  is there.
+
 ## RE-017: Findings from an outside review of M1  (2026-11-24, status: worked-around)
 
 An independent agent reviewed the repository after M1. What it found that is

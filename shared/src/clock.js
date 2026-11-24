@@ -14,6 +14,8 @@
  * @typedef {object} ClockWorker
  * @property {(message: {type: 'set', id: number, ms: number} | {type: 'clear', id: number}) => void} postMessage
  * @property {((event: {data: {type: 'fire', id: number}}) => void) | null} onmessage
+ * @property {((event: any) => void) | null} [onerror] the worker failed to start, or threw
+ * @property {((event: any) => void) | null} [onmessageerror]
  * @property {() => void} terminate
  */
 
@@ -51,60 +53,78 @@ export class TimeoutError extends Error {
     }
 }
 
+/** The clock stopped: it was disposed, or its worker failed. Timers it held will never fire. */
+export class ClockError extends Error {
+    /** @param {string} message */
+    constructor(message) {
+        super(message);
+        this.name = 'ClockError';
+    }
+}
+
 export class Clock {
     /** @type {ClockWorker} */
     #worker;
-    /** @type {Map<number, () => void>} */
-    #callbacks = new Map();
+    /** @type {Map<number, {fire: () => void, fail?: (error: Error) => void}>} */
+    #timers = new Map();
     #nextId = 1;
-    #disposed = false;
+    /** Why the clock stopped, once it has. @type {ClockError | null} */
+    #stopped = null;
 
     /** @param {ClockWorker} worker */
     constructor(worker) {
         this.#worker = worker;
         worker.onmessage = (event) => {
-            const callback = this.#callbacks.get(event.data.id);
-            if (callback) {
-                this.#callbacks.delete(event.data.id);
-                callback();
+            const timer = this.#timers.get(event.data.id);
+            if (timer) {
+                this.#timers.delete(event.data.id);
+                timer.fire();
             }
         };
+        // A worker that never started (blocked by policy, out of memory) or that threw will not
+        // fire anything again. Everything waiting on it has to be told, or it waits for ever.
+        /** @param {any} event */
+        const failed = (event) => this.#stop(new ClockError(`the timer worker failed${event?.message ? `: ${event.message}` : ''}`));
+        worker.onerror = failed;
+        worker.onmessageerror = failed;
     }
 
     /** Number of timers that have been set and have neither fired nor been cancelled. */
     get pending() {
-        return this.#callbacks.size;
+        return this.#timers.size;
     }
 
     /**
      * Run `callback` after `ms` milliseconds.
      * @param {number} ms
      * @param {() => void} callback
+     * @param {(error: Error) => void} [onStop] called instead, if the clock stops before the timer fires
      * @returns {() => void} cancel
      */
-    after(ms, callback) {
-        if (this.#disposed) throw new Error('clock has been disposed');
+    after(ms, callback, onStop) {
+        if (this.#stopped) throw this.#stopped;
         const id = this.#nextId++;
-        this.#callbacks.set(id, callback);
+        this.#timers.set(id, { fire: callback, fail: onStop });
         this.#worker.postMessage({ type: 'set', id, ms: Math.max(0, ms) });
         return () => {
-            if (this.#callbacks.delete(id)) this.#worker.postMessage({ type: 'clear', id });
+            if (this.#timers.delete(id)) this.#worker.postMessage({ type: 'clear', id });
         };
     }
 
     /**
-     * Resolve after `ms` milliseconds.
+     * Resolve after `ms` milliseconds. Rejects with a {@link ClockError} if the clock stops first.
      * @param {number} ms
      * @returns {Promise<void>}
      */
     sleep(ms) {
-        return new Promise((resolve) => {
-            this.after(ms, resolve);
+        return new Promise((resolve, reject) => {
+            this.after(ms, resolve, reject);
         });
     }
 
     /**
-     * Settle with `promise`, or reject with a {@link TimeoutError} if it takes longer than `ms`.
+     * Settle with `promise`, or reject with a {@link TimeoutError} if it takes longer than `ms`,
+     * or with a {@link ClockError} if the clock stops before either.
      * @template T
      * @param {Promise<T>} promise
      * @param {number} ms
@@ -113,7 +133,15 @@ export class Clock {
      */
     timeout(promise, ms, what = 'operation') {
         return new Promise((resolve, reject) => {
-            const cancel = this.after(ms, () => reject(new TimeoutError(`${what} timed out after ${ms} ms`)));
+            /** @type {() => void} */
+            let cancel;
+            try {
+                cancel = this.after(ms, () => reject(new TimeoutError(`${what} timed out after ${ms} ms`)), reject);
+            } catch (error) {
+                promise.catch(() => {}); // nobody is left to hear it
+                reject(error);
+                return;
+            }
             promise.then(
                 (value) => {
                     cancel();
@@ -127,11 +155,19 @@ export class Clock {
         });
     }
 
-    /** Stop the worker. Timers that have not fired never will. */
+    /** Stop the worker. Timers that have not fired never will; whoever waits on one is told. */
     dispose() {
-        this.#disposed = true;
-        this.#callbacks.clear();
+        this.#stop(new ClockError('clock has been disposed'));
+    }
+
+    /** @param {ClockError} reason */
+    #stop(reason) {
+        if (this.#stopped) return;
+        this.#stopped = reason;
+        const timers = [...this.#timers.values()];
+        this.#timers.clear();
         this.#worker.terminate();
+        for (const timer of timers) timer.fail?.(reason);
     }
 }
 

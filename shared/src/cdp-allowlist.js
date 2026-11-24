@@ -16,6 +16,8 @@
 /** @type {ReadonlySet<string>} */
 export const ALLOWED_METHODS = new Set([
     'Browser.getVersion',
+    // This list checks names, not whose target an id is. A relay must also keep the two calls
+    // that take a target id to targets it created itself (D-018; architecture.md 3.7).
     'Target.createTarget',
     'Target.attachToTarget',
     'Target.closeTarget',
@@ -35,9 +37,11 @@ export const ALLOWED_METHODS = new Set([
     'Tracing.end',
     'IO.read',
     'IO.close',
-    // Runs script in the page under test. Needed for the orange cover (D-014)
-    // and for reading paint timings. It cannot reach local files by itself:
-    // web content is not allowed to navigate to file: URLs.
+    // Runs script in the page under test. Needed today for the orange cover (D-014), and by
+    // scripted tests on every runner, which is why it is here for all three (D-031). It cannot
+    // reach local files by itself: web content is not allowed to navigate to file: URLs. What it
+    // can do is act as the user in a tab that has their cookies - the extension's normal-profile
+    // fallback - so the integrity of the capture origin is what protects those sites.
     'Runtime.evaluate',
 ]);
 

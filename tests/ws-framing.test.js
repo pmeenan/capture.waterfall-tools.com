@@ -123,6 +123,24 @@ describe('FrameDecoder', () => {
         expect([...message.payload]).toEqual([0x03, 0xe8]);
     });
 
+    it('reassembles a large frame that arrives in many small chunks, in linear time', () => {
+        // 4 MB in 64-byte chunks took 4.6 s when used chunks were shifted off one by one.
+        const payload = new Uint8Array(4 * 1024 * 1024);
+        for (let i = 0; i < payload.length; i += 4099) payload[i] = i & 0xff;
+        const frame = serverFrame(0x82, payload);
+        const decoder = new FrameDecoder();
+        /** @type {import('@capture/shared/ws-framing').WsMessage[]} */
+        const messages = [];
+        const started = performance.now();
+        for (let at = 0; at < frame.length; at += 64) messages.push(...decoder.push(frame.subarray(at, at + 64)));
+        expect(performance.now() - started).toBeLessThan(1000);
+        expect(messages).toHaveLength(1);
+        expect(messages[0].payload).toEqual(payload);
+        // A frame that follows is still read from the right place.
+        const [next] = decoder.push(serverFrame(0x81, ascii('next')));
+        expect(next.payload).toEqual(ascii('next'));
+    });
+
     it('handles empty payloads and empty chunks', () => {
         const decoder = new FrameDecoder();
         expect(decoder.push(new Uint8Array(0))).toEqual([]);

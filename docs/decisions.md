@@ -41,6 +41,81 @@ licence gate, in M1. D-027..D-029 answer an outside review of the project on
 
 ---
 
+## D-031: `Runtime.evaluate` stays on the one allowlist, for all three runners  (2026-11-24, status: accepted; adds a known limit to D-018)
+
+**Decision.** `Runtime.evaluate` remains on the shared CDP allowlist. The
+extension's relay and the helper's relay forward it, as the Android runner
+uses it. There is one allowlist, not one per runner.
+
+**Context.** The second outside review on 2026-11-24 recommended taking it
+off the extension's and the helper's relays, since today only the Android
+orange cover needs it (D-014). The project owner chose to keep it
+everywhere: scripted tests are confirmed scope, WebPageTest-style scripts
+run arbitrary script in the tested page, and so every runner will need it.
+The scaffolding agent had recommended leaving it off the extension's relay
+until scripting is built; the owner decided against the detour.
+
+**Consequences.**
+- A known limit joins those of D-018. In the extension's normal-profile
+  fallback (D-027) the tested tab has the user's cookies. Whoever can serve
+  script from the capture origin, to a user with the extension installed,
+  could then open a site in a test tab and act there as the user — read the
+  page, change state, make authenticated requests — rather than only see
+  cookies in a trace. In an incognito window, and in the helper's throwaway
+  profile, there is no signed-in state to reach.
+- That puts more weight on what already protects the capture origin: the
+  Content-Security-Policy with no inline or third-party script, no
+  dependencies in the shipped page beyond what the licence gate and
+  `npm audit` cover, and incognito as the extension's default (D-027). None
+  of these may be loosened casually.
+- The extension's other guards are unchanged and still matter: it attaches
+  only to tabs it created, so script cannot be run in a tab the user opened.
+- The security review that D-017 requires covers this, and the public
+  description of the extension says that tests can run script in the pages
+  they load.
+- When scripting is designed (Q9), how a script from a shared or imported
+  test is shown to the user before it runs in a signed-in profile is part of
+  that design.
+
+**Reopen if.** The security review finds this unacceptable for the
+extension's normal-profile fallback; or scripted tests are dropped from
+scope, which removes the reason for it outside Android.
+
+## D-030: The helper may load local and private-network addresses  (2026-11-24, status: accepted; adds a known limit to D-022)
+
+**Decision.** The helper's URL filter stays as D-022 wrote it: any `http(s)`
+URL may be loaded, including loopback, private-range and link-local
+addresses. They are not refused and not put behind a flag.
+
+**Context.** Raised by the second outside review on 2026-11-24: a page
+paired with the helper can have the helper's browser load
+`http://127.0.0.1:…`, a router's admin page, or a cloud metadata address,
+and see what comes back in the trace and the video — and read it outright
+while `Runtime.evaluate` is on the allowlist. The owner chose to allow it
+and record the risk, over a start-up flag or refusing such addresses.
+Testing a site on a local development server is one of the main things a
+tool like this is for.
+
+**Consequences.**
+- A known limit joins those of D-022: whoever can serve script from the
+  capture origin to a user with a paired helper can reach whatever that
+  machine can reach over HTTP, not only the public web. An ordinary web page
+  can already *send* requests to such addresses once Chrome's local-network
+  permission is granted, but cannot read the answers unless the service
+  allows it; through the helper it can.
+- What limits it: pairing still needs the per-run secret; the helper's
+  browser is a throwaway profile with no cookies or saved credentials
+  (D-022 rule 5), so only services that trust a caller for where it is on
+  the network are exposed; and the helper runs only while the user has
+  started it.
+- The security review that D-017 requires covers this, and the helper's
+  documentation says plainly that tests can target local addresses.
+- The same filter is used by the extension's relay (D-018), where the
+  browser is the user's own; nothing here changes that.
+
+**Reopen if.** The security review finds this unacceptable for a public
+build, or the helper gains a mode that runs unattended or for long periods.
+
 ## D-029: waterfall-tools is a git submodule of this repository, for working on both together  (2026-11-24, status: accepted; amends D-006)
 
 **Decision.** The waterfall-tools repository is added to this one as a git

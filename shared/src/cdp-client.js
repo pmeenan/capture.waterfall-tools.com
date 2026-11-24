@@ -50,7 +50,10 @@ export class CdpClient {
     #vet;
     #nextId = 1;
     #closed = false;
-    /** @type {Map<number, {method: string, resolve: (value: any) => void, reject: (reason: Error) => void}>} */
+    /** @type {(error: unknown) => void} */
+    #onListenerError;
+    /** Commands not answered yet. `finish` settles one, whichever way it ends, and releases what it held. */
+    /** @type {Map<number, {method: string, finish: (error: Error | null, result?: any) => void}>} */
     #pending = new Map();
     /** @type {Set<(event: CdpEvent) => void>} */
     #listeners = new Set();
@@ -63,11 +66,13 @@ export class CdpClient {
      * @param {object} options
      * @param {import('./clock.js').Clock} options.clock
      * @param {(method: string, params?: Record<string, unknown>) => string | null} [options.vet] defaults to the shared allowlist
+     * @param {(error: unknown) => void} [options.onListenerError] told when an event listener throws; defaults to the console
      */
-    constructor(transport, { clock, vet = vetCommand }) {
+    constructor(transport, { clock, vet = vetCommand, onListenerError = (error) => console.error('CDP event listener failed:', error) }) {
         this.#transport = transport;
         this.#clock = clock;
         this.#vet = vet;
+        this.#onListenerError = onListenerError;
         transport.onMessage = (text) => this.#receive(text);
         transport.onClose = () => this.#fail(new CdpError('CDP connection closed', ''));
     }
@@ -81,16 +86,39 @@ export class CdpClient {
      * @param {string} method
      * @param {Record<string, unknown>} [params]
      * @param {string} [sessionId]
+     * @param {object} [options]
+     * @param {number} [options.timeoutMs] give up after this long; by default a command waits until the connection closes
+     * @param {AbortSignal} [options.signal] stops waiting for the answer, for example when the user cancels a run
      * @returns {Promise<any>}
      */
-    send(method, params = {}, sessionId) {
+    send(method, params = {}, sessionId, { timeoutMs, signal } = {}) {
         if (this.#closed) return Promise.reject(new CdpError('CDP connection closed', method));
         const refusal = this.#vet(method, params);
         if (refusal) return Promise.reject(new CdpError(refusal, method));
+        if (signal?.aborted) return Promise.reject(new CdpError(`${method} was cancelled`, method));
         const id = this.#nextId++;
         return new Promise((resolve, reject) => {
-            this.#pending.set(id, { method, resolve, reject });
-            this.#transport.send(JSON.stringify(sessionId ? { id, method, params, sessionId } : { id, method, params }));
+            let cancelTimer = () => {};
+            // Giving up on a command does not stop the browser running it: an answer that arrives
+            // afterwards finds nothing waiting and is dropped.
+            /** @param {Error | null} error @param {any} [result] */
+            const finish = (error, result) => {
+                if (!this.#pending.delete(id)) return;
+                cancelTimer();
+                signal?.removeEventListener('abort', onAbort);
+                if (error) reject(error);
+                else resolve(result);
+            };
+            const onAbort = () => finish(new CdpError(`${method} was cancelled`, method));
+            this.#pending.set(id, { method, finish });
+            try {
+                if (timeoutMs !== undefined) cancelTimer = this.#clock.after(timeoutMs, () => finish(new TimeoutError(`${method} timed out after ${timeoutMs} ms`)), finish);
+                signal?.addEventListener('abort', onAbort, { once: true });
+                this.#transport.send(JSON.stringify(sessionId ? { id, method, params, sessionId } : { id, method, params }));
+            } catch (error) {
+                // A transport that throws - a socket already closing - must not leave the command waiting.
+                finish(error instanceof Error ? error : new CdpError(String(error), method));
+            }
         });
     }
 
@@ -123,6 +151,7 @@ export class CdpClient {
             // Whichever way the wait ends - the event, the timeout, cancellation, or the connection
             // closing - its listener, its timer and its abort handler are all released. A wait left
             // behind would keep a run from ever finishing its cleanup.
+            let cancelTimer = () => {};
             /** @param {() => void} settle */
             const finish = (settle) => {
                 if (!this.#waits.delete(wait)) return;
@@ -137,10 +166,21 @@ export class CdpClient {
             const unsubscribe = this.onEvent((event) => {
                 if (event.method !== method) return;
                 if (sessionId !== undefined && event.sessionId !== sessionId) return;
-                if (predicate && !predicate(event.params)) return;
+                try {
+                    if (predicate && !predicate(event.params)) return;
+                } catch (error) {
+                    wait.fail(error instanceof Error ? error : new CdpError(String(error), method));
+                    return;
+                }
                 finish(() => resolve(event.params));
             });
-            const cancelTimer = this.#clock.after(timeoutMs, () => wait.fail(new TimeoutError(`waiting for ${method} timed out after ${timeoutMs} ms`)));
+            try {
+                // If the clock stops, the timeout can never fire, so the wait ends with it.
+                cancelTimer = this.#clock.after(timeoutMs, () => wait.fail(new TimeoutError(`waiting for ${method} timed out after ${timeoutMs} ms`)), wait.fail);
+            } catch (error) {
+                wait.fail(error instanceof Error ? error : new CdpError(String(error), method));
+                return;
+            }
             signal?.addEventListener('abort', onAbort, { once: true });
         });
     }
@@ -166,13 +206,20 @@ export class CdpClient {
         if (typeof message.id === 'number') {
             const waiting = this.#pending.get(message.id);
             if (!waiting) return;
-            this.#pending.delete(message.id);
-            if (message.error) waiting.reject(new CdpError(String(message.error.message ?? message.error), waiting.method, message.error.code));
-            else waiting.resolve(message.result);
+            if (message.error) waiting.finish(new CdpError(String(message.error.message ?? message.error), waiting.method, message.error.code));
+            else waiting.finish(null, message.result);
         } else if (typeof message.method === 'string') {
             /** @type {CdpEvent} */
             const event = { method: message.method, params: message.params, sessionId: message.sessionId };
-            for (const listener of [...this.#listeners]) listener(event);
+            // One listener that throws must not keep the event from the others: a wait for the
+            // load event may be among them.
+            for (const listener of [...this.#listeners]) {
+                try {
+                    listener(event);
+                } catch (error) {
+                    this.#onListenerError(error);
+                }
+            }
         }
     }
 
@@ -180,8 +227,7 @@ export class CdpClient {
     #fail(error) {
         if (this.#closed) return;
         this.#closed = true;
-        for (const waiting of this.#pending.values()) waiting.reject(new CdpError(error.message, waiting.method));
-        this.#pending.clear();
+        for (const waiting of [...this.#pending.values()]) waiting.finish(new CdpError(error.message, waiting.method));
         for (const wait of [...this.#waits]) wait.fail(new CdpError(error.message, wait.method));
     }
 }

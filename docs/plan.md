@@ -239,8 +239,10 @@ over an abstract transport, WebSocket framing for the ADB socket, and an
 artifact builder that writes a provisional layout.
 
 - [x] Workspaces, build, lint, type check, vitest, licence gate.
-- [ ] CI on pull requests. *Workflow written (`.github/workflows/ci.yml`);
-      it has not run yet, since nothing has been pushed as a pull request. The
+- [ ] CI on pull requests and on pushes to main. *Workflow written
+      (`.github/workflows/ci.yml`); it has not run yet. Since 2026-11-24 it
+      also runs on every push to main, which is how commits arrive here, and
+      fails on a dependency with a known vulnerability (`npm audit`). The
       same steps pass locally as `npm run check`.*
 - [x] Deploy script with dry run; README check commands. *The dry run
       passes; no real deploy has been made, and the custom domain is not
@@ -255,17 +257,17 @@ artifact builder that writes a provisional layout.
 Waiting on: nothing to start. The artifact layout stays provisional, and is
 labelled as such in what it writes, until the spec exists (Q5, D-011).
 
-**Exit criteria:** CI is green on a pull request; the shell is reachable at
+**Exit criteria:** CI is green on GitHub, on a push to main or a pull request; the shell is reachable at
 the production URL after the owner deploys it; the page builds a result zip
 from a canned trace and saves it, and that trace converts with the published
 waterfall-tools command-line tool; unit tests cover the clock, the allowlist
 and the framing.
 
-**Status 2026-11-23.** Built and passing locally: 97 unit tests, lint, type
+**Status 2026-11-23.** Built and passing locally: 97 unit tests (131 after the two reviews of 2026-11-24), lint, type
 check, build, licence gate (after D-026), deploy dry run. The trace inside a
 built artifact converts with the published waterfall-tools package (checked
 through its library entry point in a unit test). Two exit criteria are the
-owner's to complete: a pull request for CI to run on, and a first deploy so
+owner's to complete: a push for CI to run on, and a first deploy so
 the shell is reachable at the production address.
 
 ### M2 — Helper runner, capture pipeline, and a first result in the viewer  `pending`
@@ -290,6 +292,34 @@ Added after the review of 2026-11-24:
   delayed by known amounts, a connection that stays open, a navigation that
   fails.
 
+Added after the second review of 2026-11-24, accepted by the owner:
+
+- **A minimal diagnostics log**, pulled forward from M10: the steps of
+  preflight and of each run, kept in memory, with a button to download
+  them. With no telemetry (D-010) this is the only way a failed run can be
+  reported, and it is cheapest to build with the pipeline. It leaves the
+  machine only when the user saves it.
+- **A pinned Chrome on Linux CI, checked early.** The CI image ships stable
+  Chrome; the socket-layer throttling switch needs 160 or later (RE-001),
+  and loading an extension over the debugging pipe has only been seen
+  working on Windows Canary 160 (RE-011). Install a pinned Chrome for
+  Testing or Dev build in CI and prove the helper's pipe launch on it now,
+  so that M4 and M5 do not discover a Linux difference late.
+
+To build in, from the same review (design in architecture.md §3.4, §3.7 and
+§3.11): the relay tracks the targets it created and refuses to attach to or
+close any other; the page removes the pairing fragment from the address bar
+and the helper drops a connection that does not authenticate promptly; the
+capture page posts results only to the viewer's exact origin; open requests
+are counted by request id, not with a counter. To decide while building:
+whether a pairing secret is used once or for the helper's lifetime;
+separate type-check settings for page, extension and Node code once
+`helper/` has code in it (one `tsconfig.json` covers everything today, so a
+Node import in page code would not be caught by the type check); and how
+tests reach the artifact parser that lives in the submodule, given that
+`package.json` depends on the published waterfall-tools and CI does not
+check the submodule out.
+
 Waiting on: the owner's commits in the waterfall-tools repository for the
 viewer changes. (The submodule was added on 2026-11-24, pinned at
 waterfall-tools `36c2d86`, v0.4-7.)
@@ -299,10 +329,14 @@ unattended and gets a result whose trace converts with waterfall-tools;
 against the controlled pages, the capture contains exactly the requests
 the page makes, the run ends where D-028 says it should for each case
 (redirect, delayed resource, open connection, failed navigation, the time
-limit), and each ending is recorded correctly; that result opens in the
+limit), and each ending is recorded correctly; the helper launches the
+pinned Chrome on the Linux CI image; a failed run's diagnostics log can be
+downloaded and says which step failed; that result opens in the
 embedded viewer, built from the submodule, without leaving the machine; the
 guard tests of RE-014 (wrong origin, wrong secret, foreign `Host`, no
-`Origin`, abuse through the relay) run in CI and pass; a test proves the
+`Origin`, abuse through the relay) run in CI and pass, joined by two more:
+the relay refuses to attach to or close a target it did not create, and a
+connection that never sends the secret is dropped; a test proves the
 pipeline calls nothing outside the allowlist; cancelling mid-run leaves no
 browser process and no temporary profile behind.
 
@@ -319,15 +353,23 @@ Scope: obtaining an `Adb` connection over WebUSB and over the dev bridge;
 the device layer — save and restore of device state, launch with switches,
 DevTools socket discovery, file pull; the same pipeline over the ADB socket
 transport; the browser picker; guidance when a local adb server holds the
-phone.
+phone. Also the **design of the gate for the helper's adb route** (D-023),
+moved here from M8 after the second review of 2026-11-24: the dev bridge
+and the helper are one program, so the opt-in — proposed as a start-up flag
+naming one device, with a plain statement in the terminal — is agreed with
+the owner and built before the bridge carries a phone, rather than bolted
+onto an unguarded mode at release time.
 
-Waiting on: a phone attached to the development machine. For a public claim
+Waiting on: a phone attached to the development machine; the owner's
+agreement to the gate design. For a public claim
 of support: one pass on a stock phone with SELinux enforcing (RE-009).
 
 **Exit criteria:** an agent runs a test on the phone through the dev bridge
 unattended and gets a result whose trace converts with waterfall-tools; the
 phone's debug-app setting and command-line file are byte-identical after a
-successful run, a failed run, and a cancelled run; the owner has walked the
+successful run, a failed run, and a cancelled run; the bridge reaches a
+phone only when started with the opt-in, and only the device it names; the
+owner has walked the
 manual WebUSB checklist once — chooser, on-phone prompt, competing adb
 server, unplug and reconnect.
 
@@ -346,6 +388,13 @@ runs a test in a normal tab and in an incognito window; the bridge refuses a
 connection from another origin, a tab it did not create, and a method off
 the allowlist; a run survives the service worker being stopped between runs.
 
+**Before M5 starts: a spike on desktop recording alignment** (added by the
+second review of 2026-11-24). Nobody has measured how a
+`Page.startScreenRecording` video lines up with the trace clock. If the
+recording starts late by a variable amount, as `screenrecord` does on
+Android (RE-013), desktop video needs a sync marker or a timestamp
+correlation too, and that changes M5's design.
+
 ### M5 — Capture fidelity  `pending`
 
 Scope: throttling with connection presets, and detection of the engine that
@@ -360,7 +409,8 @@ Waiting on: the artifact spec for the final names of what is recorded (Q5).
 **Exit criteria:** on each runner a result carries a trace, video where the
 runner supports it, and an environment block whose throttling engine,
 isolation level, trace scope and video source match what was done — checked
-in tests by running the helper with and without the throttling switch, with
+in tests by running the helper, on the pinned Chrome that M2 put into CI,
+with and without the throttling switch, with
 the engine recorded as unknown whenever connection timing cannot tell the
 two apart;
 Android video analysis reproduces the RE-013 results on recorded files in
@@ -399,8 +449,8 @@ four); nothing is uploaded without the warning having been shown.
 
 ### M8 — First release  `pending`
 
-Scope: the helper's opt-in route to a phone through the adb server and its
-gate (D-023); the security review of the helper and the extension that D-017
+Scope: shipping the helper's route to a phone through the adb server behind
+the gate designed and built in M3 (D-023); the security review of the helper and the extension that D-017
 requires; the Chrome Web Store listing; the npm package; public
 documentation; the manual checklists.
 
@@ -419,11 +469,15 @@ scope that ships afterwards.
 
 Multiple runs with median selection, first view / repeat view, CPU
 throttling with calibration, device emulation for desktop runs, real-radio
-mode on Android. Starts with the test-model design (Q9).
+mode on Android. Starts with the test-model design (Q9). To check first:
+each socket-layer throttling profile has its own in-memory HTTP cache
+(RE-001), so applying throttling again between the first and the repeat
+view could silently throw the warm cache away.
 
 ### M10 — Breadth  `pending`
 
-Local result history, opening an existing result, the diagnostics log,
+Local result history, opening an existing result, the rest of the diagnostics log
+(a minimal one is built in M2),
 test-browser install from packages (spike S6, Q10), managed-profile
 detection, and packet capture and TLS key logging through the helper.
 
@@ -436,15 +490,16 @@ Scripted multi-step tests, custom request headers, blocked hosts.
 - The artifact format must have room for multiple runs and first / repeat
   view from its first version, because it is expensive to change once
   results are published (D-007).
-- The first release has no diagnostics log and no telemetry (D-010), so
-  failures in the field will be hard to diagnose; D-012 names that as a
-  reason to pull the diagnostics log forward.
+- The first release has no telemetry (D-010), so failures in the field
+  would be hard to diagnose; D-012 names that as a reason to pull the
+  diagnostics log forward, and a minimal one now ships in M2.
 
 ### What only the owner can unblock
 
 | Item | Blocks |
 | --- | --- |
-| Review of the architecture draft and of this ladder | M0 exit |
+| Review of the architecture draft and of this ladder | Nothing outright: M0 exited without it. Until it happens, the module names, interfaces and per-milestone scopes in both remain proposals |
+| Agreement to the design of the helper's adb gate (D-023) | the Android-through-helper part of M3 |
 | Commits in the waterfall-tools repository, made through the submodule (D-029) | the viewer part of M2 |
 | Artifact spec beyond the minimal first version (Q5, D-011) | M6, and final field names in M5 |
 | waterfall-tools: parser for the spec, open `postMessage` load, load by reference | M6, M7 |

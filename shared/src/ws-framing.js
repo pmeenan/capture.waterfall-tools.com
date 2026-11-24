@@ -192,14 +192,19 @@ export class FrameDecoder {
     #take(n) {
         const out = new Uint8Array(n);
         let filled = 0;
+        // Used-up chunks are dropped in one go at the end. Shifting them off one at a time made a
+        // large frame that arrived in small pieces take quadratic time: 34 s for 16 MB in 64-byte
+        // chunks.
+        let used = 0;
         while (filled < n) {
-            const chunk = this.#chunks[0];
+            const chunk = this.#chunks[used];
             const k = Math.min(chunk.length, n - filled);
             out.set(chunk.subarray(0, k), filled);
             filled += k;
-            if (k === chunk.length) this.#chunks.shift();
-            else this.#chunks[0] = chunk.subarray(k);
+            if (k === chunk.length) used++;
+            else this.#chunks[used] = chunk.subarray(k);
         }
+        this.#chunks.splice(0, used);
         this.#buffered -= n;
         return out;
     }

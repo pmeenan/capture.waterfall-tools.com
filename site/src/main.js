@@ -36,10 +36,9 @@ function renderRunners() {
     byId('runners').replaceChildren(...RUNNERS.map((r) => el('li', { className: 'featureCard' }, [el('h3', { text: r.title }), el('p', { text: r.text }), el('p', { text: r.status, className: 'status' })])));
 }
 
-/** @param {import('@capture/shared/clock').Clock} clock */
-async function renderPreflight(clock) {
+async function renderPreflight() {
     const words = { yes: 'Yes', no: 'No', info: 'Note' };
-    const checks = await runPreflight({ clock });
+    const checks = await runPreflight({ createClock });
     byId('preflight').replaceChildren(
         ...checks.map((check) => {
             const state = el('span', { text: words[check.state], className: 'state' });
@@ -89,6 +88,6 @@ function wireSample() {
 byId('version').textContent = SITE_VERSION;
 renderRunners();
 wireSample();
-renderPreflight(createClock()).catch((error) => {
+renderPreflight().catch((error) => {
     byId('preflight').replaceChildren(el('li', { text: `Checks failed: ${error instanceof Error ? error.message : String(error)}`, className: 'error' }));
 });

@@ -33,9 +33,13 @@ const encoder = new TextEncoder();
 
 /**
  * Payloads of one page load. Anything not captured is simply absent.
+ *
+ * The archive stores its members uncompressed, so that a reader can fetch one
+ * with a range request. Text payloads therefore arrive here already gzipped:
+ * a NetLog is tens of megabytes of JSON and shrinks about tenfold.
  * @typedef {object} RunPayloads
  * @property {Uint8Array} [trace] gzipped Chrome trace JSON
- * @property {Uint8Array} [netlog] NetLog JSON as pulled
+ * @property {Uint8Array} [netlog] gzipped NetLog JSON, otherwise as pulled
  * @property {Uint8Array} [video] MP4 as recorded
  * @property {Record<string, unknown>} [videoAnalysis] start offset, crop rectangle, kept-frame times (D-021)
  */
@@ -64,12 +68,13 @@ export function buildArtifact({ test, environment, runs, generator, created = ne
         /** @type {[keyof RunPayloads, string][]} */
         const known = [
             ['trace', 'trace.json.gz'],
-            ['netlog', 'netlog.json'],
+            ['netlog', 'netlog.json.gz'],
             ['video', 'video.mp4'],
         ];
         for (const [key, filename] of known) {
             const data = run[key];
             if (data instanceof Uint8Array) {
+                if (filename.endsWith('.gz') && !(data[0] === 0x1f && data[1] === 0x8b)) throw new Error(`run ${i + 1}: the ${key} is not gzipped`);
                 files[key] = `${dir}/${filename}`;
                 entries.push({ name: files[key], data });
             }

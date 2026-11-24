@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const out = fileURLToPath(new URL('../dist/site', import.meta.url));
 const port = Number(process.argv[2] ?? 4173);
-const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.gz': 'application/gzip', '.zip': 'application/zip' };
+const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.gz': 'application/gzip', '.zip': 'application/zip', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 /**
  * Parse the subset of Cloudflare's _headers format this project uses: a path
@@ -40,9 +40,14 @@ if (!fs.existsSync(path.join(out, 'index.html'))) {
 }
 const rules = readHeaderRules();
 http.createServer((req, res) => {
-    const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    let pathname = '';
+    try {
+        pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://localhost').pathname);
+    } catch {
+        // a malformed escape: falls through to "not found"
+    }
     const file = path.join(out, pathname.endsWith('/') ? pathname + 'index.html' : pathname);
-    if (!file.startsWith(out) || !fs.existsSync(file) || !fs.statSync(file).isFile() || path.basename(file) === '_headers') {
+    if (!pathname || !file.startsWith(out + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile() || path.basename(file) === '_headers') {
         res.writeHead(404, { 'content-type': 'text/plain' });
         res.end('not found');
         return;

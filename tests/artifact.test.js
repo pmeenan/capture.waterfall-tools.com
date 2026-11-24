@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { unzipSync } from 'fflate';
+import { gunzipSync, gzipSync, unzipSync } from 'fflate';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- waterfall-tools ships no type declarations
 import { WaterfallTools } from 'waterfall-tools';
@@ -27,7 +27,9 @@ describe('buildArtifact', () => {
     });
 
     it('puts the manifest first and each payload where the manifest says', () => {
-        const netlog = new TextEncoder().encode('{"constants":{},"events":[');
+        // An unterminated NetLog, as a force-stopped browser leaves it (D-016), gzipped by the pipeline.
+        const netlogText = '{"constants":{},"events":[';
+        const netlog = gzipSync(new TextEncoder().encode(netlogText));
         const video = new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70]);
         const { zip, manifest } = buildArtifact({
             test: { url: 'https://example.com/' },
@@ -37,9 +39,10 @@ describe('buildArtifact', () => {
             created,
         });
         const files = unzipSync(zip);
-        expect(Object.keys(files)).toEqual(['manifest.json', 'runs/1/trace.json.gz', 'runs/1/netlog.json', 'runs/1/video.mp4', 'runs/2/trace.json.gz']);
+        expect(Object.keys(files)).toEqual(['manifest.json', 'runs/1/trace.json.gz', 'runs/1/netlog.json.gz', 'runs/1/video.mp4', 'runs/2/trace.json.gz']);
         expect(JSON.parse(new TextDecoder().decode(files['manifest.json']))).toEqual(manifest);
         expect(files[manifest.runs[0].files.netlog]).toEqual(netlog);
+        expect(new TextDecoder().decode(gunzipSync(files[manifest.runs[0].files.netlog]))).toBe(netlogText);
         expect(files[manifest.runs[0].files.video]).toEqual(video);
         expect(manifest.runs[0].videoAnalysis).toEqual({ startOffsetMs: 534 });
         expect(manifest.runs[1]).toEqual({ index: 2, view: 'first', files: { trace: 'runs/2/trace.json.gz' } });
@@ -48,6 +51,14 @@ describe('buildArtifact', () => {
     it('refuses an artifact with no runs, or a run with no payloads', () => {
         expect(() => buildArtifact({ test: { url: 'https://example.com/' }, environment, runs: [], generator })).toThrow(/at least one run/);
         expect(() => buildArtifact({ test: { url: 'https://example.com/' }, environment, runs: [{}], generator })).toThrow(/no payloads/);
+    });
+
+    // Members are stored, not deflated, so a text payload that arrived uncompressed would be
+    // written at full size: tens of megabytes for a NetLog.
+    it('refuses a trace or a NetLog that is not gzipped', () => {
+        const plain = new TextEncoder().encode('{"constants":{},"events":[');
+        expect(() => buildArtifact({ test: { url: 'https://example.com/' }, environment, runs: [{ trace: sampleTrace, netlog: plain }], generator })).toThrow('run 1: the netlog is not gzipped');
+        expect(() => buildArtifact({ test: { url: 'https://example.com/' }, environment, runs: [{ trace: sampleTrace }, { trace: plain }], generator })).toThrow('run 2: the trace is not gzipped');
     });
 
     // The M1 exit criterion: a trace taken out of an artifact still converts with the

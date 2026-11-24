@@ -56,6 +56,13 @@ describe('createZip', () => {
         expect(() => createZip([{ name, data: new Uint8Array(1) }], when)).toThrow(/unsafe/);
     });
 
+    it('refuses a name too long for its 16-bit length field', () => {
+        expect(() => createZip([{ name: 'a'.repeat(0x10000), data: new Uint8Array(1) }], when)).toThrow(/too long/);
+        // The limit is on encoded bytes, not characters: 21846 three-byte characters are 65538 bytes.
+        expect(() => createZip([{ name: '€'.repeat(21846), data: new Uint8Array(1) }], when)).toThrow(/too long/);
+        expect(Object.keys(unzipSync(createZip([{ name: 'a'.repeat(0xffff), data: new Uint8Array(1) }], when)))[0]).toHaveLength(0xffff);
+    });
+
     it('refuses duplicate names', () => {
         expect(() =>
             createZip(

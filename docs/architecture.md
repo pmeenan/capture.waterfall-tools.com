@@ -5,7 +5,7 @@
 > backed by a decision. Everything under "Design" is the scaffolding agent's
 > proposal for how to build to those decisions — module names, interfaces,
 > and the repository layout are proposals until the owner has walked this
-> document and the toolchain is chosen. Evidence is cited as RE-NNN
+> document; the toolchain is settled (D-025). Evidence is cited as RE-NNN
 > ([rough-edges.md](rough-edges.md)); choices as D-NNN
 > ([decisions.md](decisions.md)).
 
@@ -172,13 +172,37 @@ The same sequence for every runner; steps in *italics* are runner-specific.
 13. **Detect what actually applied**: the throttling engine, from connection
     setup time against the configured latency (RE-001) — recorded as unknown
     when that cannot tell the two engines apart, never guessed; the isolation level;
-    the trace scope; the video source.
+    the trace scope; the video source. Timing alone is weak on a low-latency
+    preset, a reused connection or a resumed QUIC session, so where the
+    runner knows the browser version and whether it passed the switch
+    (Android, helper) those narrow the answer first and timing confirms it;
+    only the extension, which knows neither, rests on timing.
 14. ***Restore state.*** Put back anything step 2 saved, delete files left on
     the device, close tabs and windows — on success, failure and cancel
     alike, and again on the next connect if a run was cut off (AGENTS.md
     rule 11).
 15. **Hand the payloads and the environment description** to the run
     controller.
+
+**Counting requests for step 10.** "No request in flight" is easy to get
+wrong in ways that only show as a run sitting out the 120 second limit:
+
+- Keep the open requests in a map keyed by request id, with the start time
+  and type of each — not a counter. A redirect sends
+  `Network.requestWillBeSent` again for the *same* id, so a counter climbs
+  and never comes back down.
+- A request leaves the map on `loadingFinished` or `loadingFailed`. Requests
+  answered from `data:` URLs or the memory cache may never send either, and
+  must not be entered in the first place.
+- A failed navigation means the *main frame's* document request failed.
+  `net::ERR_ABORTED` on it is usually the page replacing its own navigation
+  (`location.replace`, a meta refresh) and is not a failure; the same error
+  on a subresource is a cancelled request and nothing more.
+- WebSockets and event streams are recognised by resource type
+  (`WebSocket`, `EventSource`) and, for a stream fetched some other way, by
+  a `text/event-stream` response.
+
+The controlled test pages of M2 exist to pin each of these down.
 
 ### 3.5 Android device layer
 
@@ -231,7 +255,22 @@ A small Node program published to npm (D-017, D-022):
   first message; one paired connection at a time; no plain-HTTP surface;
 - launches Chrome on the debugging pipe with a temporary profile and the
   switches a test needs, relays allowlisted CDP, and closes the browser and
-  deletes the profile when the run or the pairing ends.
+  deletes the profile when the run or the pairing ends;
+- remembers the targets it created and refuses `Target.attachToTarget` and
+  `Target.closeTarget` for any other — the helper's version of the
+  extension's "own tabs only" (D-018). The allowlist checks method names; it
+  cannot know whose target an id is, so the relay has to;
+- drops a connection that has not sent the secret within a couple of
+  seconds, so that an unpaired tab cannot sit on the single connection slot.
+
+On the page's side, the pairing fragment is read and then removed from the
+address bar with `history.replaceState` before anything else happens, so it
+is not left in a screenshot or a copied URL. Still to decide in M2: whether
+a secret pairs once or for as long as the helper runs, and where the page
+keeps it for a reconnect once the fragment is gone.
+
+The URL filter allows any `http(s)` address, local and private ones
+included; that is deliberate (D-030).
 
 The capture page reaches it only after the user grants Chrome's
 loopback-network permission; until then the connection simply waits, so the
@@ -242,8 +281,9 @@ implementation: same binding, same checks, same relay filter.
 
 The helper also offers an attached phone through the desktop adb server, in
 the first release (D-023). Unlike CDP this cannot be allowlisted — an adb
-connection includes a shell — so it sits behind its own opt-in, which is not
-designed yet.
+connection includes a shell — so it sits behind its own opt-in. That gate is
+designed in M3, before the dev bridge carries a phone, so that no unguarded
+mode is ever built and then has to be reworked for the release.
 
 Also not designed yet: how the helper finds a Chrome on each operating
 system.
@@ -294,20 +334,37 @@ producer of it. What it has to be able to express, from the decisions so far:
 - room for multiple runs and repeat views from the first version, although
   the first release writes one run (D-007, D-012).
 
-Open, for the spec work: the layout itself, whether a force-stopped NetLog is
-stored as pulled or with its closing brackets appended (D-016), and whether
-that already-compressed payloads are stored uncompressed in the zip for
-range reads (confirmed as a requirement; the spec has to carry it).
+Members are stored in the zip uncompressed, so that a reader can fetch one
+with a range request (confirmed as a requirement; the spec has to carry it).
+That only pays if each member is already compressed: the trace and the
+NetLog are gzipped by the pipeline before they reach the builder, which
+refuses either one otherwise. A NetLog is tens of megabytes of JSON and
+shrinks about tenfold.
 
-A whole result can reach tens of megabytes. Whether payloads are held in
-memory or streamed to the capture origin's OPFS while a run is in progress is
-an implementation choice to make with real numbers.
+Open, for the spec work: the layout itself, and whether a force-stopped
+NetLog is stored as pulled or with its closing brackets appended (D-016).
+
+A whole result can still reach tens of megabytes, and the builder today
+makes the archive as one array in memory, which is then copied into a
+`Blob`. Whether payloads are held in memory or streamed to the capture
+origin's OPFS while a run is in progress is an implementation choice to make
+with real numbers. Two limits on the viewer's side bound a published result
+today: its fetch proxy refuses a body over 100 MiB, and refuses `Range`
+requests, so range reads work only against storage the browser fetches
+directly.
 
 ### 3.11 After the run: viewing, keeping, publishing
 
 - **Viewing.** The capture page frames the viewer and posts the result to it
   as a transferred buffer (D-020, RE-012). The viewer's side of that — an
-  open `postMessage` load — is a waterfall-tools change.
+  open `postMessage` load — is a waterfall-tools change. The openness runs
+  one way only. The viewer accepts a result from any embedder; the capture
+  page, which holds traces with cookies in them, posts only to the viewer's
+  exact origin — never `*`, and in production never an origin taken from a
+  URL parameter. `frame-src` in `site/public/_headers` names the production
+  viewer and nothing else; when the viewer built from the submodule is
+  tried locally, the development and preview servers add its loopback
+  origin as they serve, so that it never reaches the deployed policy.
 - **Keeping.** Results the user keeps live in the capture origin's own
   storage and are posted to the viewer again when re-opened (D-020). Storage
   credentials and settings stay in the browser too. Local
@@ -443,7 +500,9 @@ Unanswered, in rough order of how much design they could move:
 4. **Who computes visual metrics** — the capture side already decodes every
    frame (D-021).
 5. **Video decoding in the viewer outside Chrome** (D-021).
-6. **The end-of-load criteria and the rest of the test model** (Q9).
+6. **The rest of the test model** (Q9). The end of a single load is settled
+   (D-028). Alignment of desktop recordings to the trace clock is untested
+   and gets a spike before M5.
 7. **Finding Chrome for the helper on macOS and Linux** (RE-014).
 8. **Whether the capture page can be frozen or discarded** by Chrome's
    energy or memory savers during a long run (RE-015).
@@ -451,3 +510,8 @@ Unanswered, in rough order of how much design they could move:
    cache-busting.
 10. **How the site finds the extension** when a store build and an unpacked
     build have different ids.
+11. **How a test's script is shown to the user before it runs in a
+    signed-in profile.** `Runtime.evaluate` stays on the shared allowlist
+    for every runner (D-031); in the extension's normal-profile fallback
+    that makes the capture origin's integrity the only thing between a test
+    and the user's signed-in sites. Part of the scripting design (Q9).

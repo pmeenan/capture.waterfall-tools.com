@@ -60,6 +60,7 @@ export function createZip(entries, modified = new Date()) {
         if (seen.has(entry.name)) throw new Error(`duplicate zip entry name: ${entry.name}`);
         seen.add(entry.name);
         const name = encoder.encode(entry.name);
+        if (name.length > 0xffff) throw new Error('zip entry name too long');
         records.push({ name, data: entry.data, crc: crc32(entry.data), offset });
         offset += 30 + name.length + entry.data.length;
     }

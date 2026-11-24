@@ -14,12 +14,15 @@
  * @property {string} detail
  */
 
+/** How long the timer worker gets to answer before the check gives up on it. */
+export const CLOCK_CHECK_LIMIT_MS = 5000;
+
 /**
  * @param {object} deps
- * @param {import('@capture/shared/clock').Clock} deps.clock
+ * @param {() => import('@capture/shared/clock').Clock} deps.createClock makes the clock to test; the check disposes of it
  * @returns {Promise<Check[]>}
  */
-export async function runPreflight({ clock }) {
+export async function runPreflight({ createClock }) {
     /** @type {Check[]} */
     const checks = [];
     /**
@@ -37,7 +40,7 @@ export async function runPreflight({ clock }) {
     has('streams', 'Compression streams', typeof globalThis.DecompressionStream === 'function' && typeof globalThis.CompressionStream === 'function', 'Used to read and write compressed traces.', 'Not available.');
     has('opfs', 'Private file storage', typeof navigator.storage?.getDirectory === 'function', 'Used to keep results in this browser.', 'Not available: results cannot be kept in this browser.');
 
-    checks.push(await clockCheck(clock));
+    checks.push(await clockCheck(createClock));
     checks.push(await loopbackCheck());
     checks.push({ id: 'extension', label: 'Extension', state: 'info', detail: 'Not checked yet: the extension runner has not been built.' });
     return checks;
@@ -45,20 +48,36 @@ export async function runPreflight({ clock }) {
 
 /**
  * The clock that capture code waits on must not depend on page timers (RE-015).
- * @param {import('@capture/shared/clock').Clock} clock
+ * @param {() => import('@capture/shared/clock').Clock} createClock
  * @returns {Promise<Check>}
  */
-async function clockCheck(clock) {
+async function clockCheck(createClock) {
     const requested = 100;
+    /** @type {import('@capture/shared/clock').Clock | null} */
+    let clock = null;
+    let cancelLimit = () => {};
     try {
-        // One round trip first, so that starting the worker is not counted as lateness.
-        await clock.timeout(clock.sleep(0), 5000, 'clock check');
-        const started = performance.now();
-        await clock.timeout(clock.sleep(requested), 5000, 'clock check');
-        const late = Math.round(performance.now() - started - requested);
+        const tested = (clock = createClock());
+        // The one page timer in capture code (AGENTS.md rule 6), and it has to be one: this is the
+        // check of the worker clock itself, and a worker that never starts cannot time itself out.
+        // A hidden page fires it late, which only delays a "no"; it cannot turn a "yes" into one.
+        const limit = new Promise((_, reject) => {
+            const timer = setTimeout(() => reject(new Error(`the timer worker did not answer within ${CLOCK_CHECK_LIMIT_MS / 1000} s`)), CLOCK_CHECK_LIMIT_MS);
+            cancelLimit = () => clearTimeout(timer);
+        });
+        const probe = (async () => {
+            await tested.sleep(0); // one round trip first, so that starting the worker is not counted as lateness
+            const started = performance.now();
+            await tested.sleep(requested);
+            return Math.round(performance.now() - started - requested);
+        })();
+        const late = await Promise.race([probe, limit]);
         return { id: 'clock', label: 'Worker clock', state: 'yes', detail: `A ${requested} ms wait finished ${late} ms late.` };
     } catch (error) {
         return { id: 'clock', label: 'Worker clock', state: 'no', detail: `Timing in the background will be unreliable: ${message(error)}` };
+    } finally {
+        cancelLimit();
+        clock?.dispose();
     }
 }
 

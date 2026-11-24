@@ -66,14 +66,34 @@ function splitTopLevel(text, separator) {
 
 /**
  * The licence a package.json declares, in SPDX form where possible.
+ *
+ * The old `licenses` array never said whether its entries were alternatives or all applied at
+ * once, and packages used it both ways. It is read as "all apply": that can refuse a package
+ * that would have been fine, and can never admit one that is not.
  * @param {any} pkg
  * @returns {string}
  */
-function declaredLicense(pkg) {
+export function declaredLicense(pkg) {
     if (typeof pkg.license === 'string') return pkg.license;
     if (pkg.license && typeof pkg.license.type === 'string') return pkg.license.type;
-    if (Array.isArray(pkg.licenses)) return pkg.licenses.map((/** @type {any} */ l) => (typeof l === 'string' ? l : l.type)).join(' OR ');
+    if (Array.isArray(pkg.licenses)) return pkg.licenses.map((/** @type {any} */ l) => `(${typeof l === 'string' ? l : (l?.type ?? '')})`).join(' AND ');
     return '';
+}
+
+/**
+ * The gate's answer for one package.
+ * @param {object} pkg
+ * @param {string} pkg.name
+ * @param {string} pkg.license the declared licence expression
+ * @param {boolean} pkg.devOnly reached only through development dependencies, per the lockfile
+ * @returns {'allowed' | 'excepted' | 'refused'}
+ */
+export function judge({ name, license, devOnly }) {
+    if (isAllowed(license)) return 'allowed';
+    // The exceptions are for development tooling (D-026). The same package arriving as a
+    // dependency of something that ships is not covered by them.
+    if (devOnly && EXCEPTIONS.some((exception) => exception.match.test(name))) return 'excepted';
+    return 'refused';
 }
 
 function main() {
@@ -92,12 +112,10 @@ function main() {
         const license = installed ? declaredLicense(JSON.parse(fs.readFileSync(manifest, 'utf8'))) : typeof entry.license === 'string' ? entry.license : '';
         if (!installed) fromLockOnly++;
         checked++;
-        if (isAllowed(license)) continue;
-        if (EXCEPTIONS.some((exception) => exception.match.test(name))) {
-            excepted.push(`${name}@${entry.version}: ${license}`);
-            continue;
-        }
-        failures.push(`${name}@${entry.version}: ${license || '(no licence declared)'}`);
+        // npm marks a package `dev` only when nothing outside devDependencies reaches it.
+        const verdict = judge({ name, license, devOnly: entry.dev === true });
+        if (verdict === 'excepted') excepted.push(`${name}@${entry.version}: ${license}`);
+        else if (verdict === 'refused') failures.push(`${name}@${entry.version}: ${license || '(no licence declared)'}`);
     }
     if (failures.length) {
         console.error(`Licence gate FAILED: ${failures.length} of ${checked} packages are outside the allowed list (${[...ALLOWED].join(', ')}):`);

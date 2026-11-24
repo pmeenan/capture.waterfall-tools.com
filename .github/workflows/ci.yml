@@ -1,8 +1,10 @@
 name: CI
 
-# The gate for pull requests (D-025). Android is not covered here: changes to the Android runner
+# Runs on pull requests and on every push to main (D-025). Android is not covered here: changes to the Android runner
 # are verified against a real phone through the dev bridge (AGENTS.md).
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -25,5 +27,8 @@ jobs:
       - run: npm run test
       - run: npm run build
       - run: npm run licenses
+      # The capture origin is a trust anchor (architecture.md, trust boundaries): a known-vulnerable
+      # dependency is a failed build, as it is in waterfall-tools.
+      - run: npm audit --audit-level=moderate
       # The unattended desktop integration jobs (helper pairing, extension over a debugging pipe)
       # join this workflow in M2 and M4, when there is something for them to run.

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Clock, TimeoutError } from '@capture/shared/clock';
+import { Clock, ClockError, TimeoutError } from '@capture/shared/clock';
 import { createFakeClockWorker } from './helpers/fake-clock-worker.js';
 
 describe('Clock', () => {
@@ -96,5 +96,38 @@ describe('Clock', () => {
         expect(fired).not.toHaveBeenCalled();
         expect(worker.terminated).toBe(true);
         expect(() => clock.after(1, fired)).toThrow('disposed');
+    });
+
+    it('rejects everything still waiting when it is disposed', async () => {
+        const clock = new Clock(createFakeClockWorker());
+        const sleeping = expect(clock.sleep(1000)).rejects.toThrow(ClockError);
+        const timed = expect(clock.timeout(new Promise(() => {}), 1000)).rejects.toThrow('disposed');
+        clock.dispose();
+        await sleeping;
+        await timed;
+        expect(clock.pending).toBe(0);
+        await expect(clock.sleep(1)).rejects.toThrow('disposed');
+        await expect(clock.timeout(Promise.reject(new Error('unheard')), 1)).rejects.toThrow('disposed');
+    });
+
+    it('rejects everything still waiting when its worker fails, and stops the worker', async () => {
+        const worker = createFakeClockWorker();
+        const clock = new Clock(worker);
+        const stopped = vi.fn();
+        clock.after(1000, () => {}, stopped);
+        const sleeping = expect(clock.sleep(1000)).rejects.toThrow('the timer worker failed: blocked by policy');
+        worker.onerror?.({ message: 'blocked by policy' });
+        await sleeping;
+        expect(stopped).toHaveBeenCalledWith(expect.any(ClockError));
+        expect(worker.terminated).toBe(true);
+        expect(() => clock.after(1, () => {})).toThrow('the timer worker failed');
+    });
+
+    it('treats a message that cannot be read as a failed worker', async () => {
+        const worker = createFakeClockWorker();
+        const clock = new Clock(worker);
+        const sleeping = expect(clock.sleep(1000)).rejects.toThrow(ClockError);
+        worker.onmessageerror?.({});
+        await sleeping;
     });
 });
