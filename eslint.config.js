@@ -4,7 +4,8 @@ import globals from 'globals';
 // Lint covers every first-party file. When a new directory is added, make sure one
 // of the blocks below matches it; only generated output belongs in `ignores`.
 export default [
-    { ignores: ['node_modules/', 'dist/', 'coverage/', '.wrangler/'] },
+    // waterfall-tools/ is a git submodule with its own lint configuration and gates (D-029).
+    { ignores: ['node_modules/', 'dist/', 'coverage/', '.wrangler/', 'waterfall-tools/'] },
     js.configs.recommended,
     {
         rules: {

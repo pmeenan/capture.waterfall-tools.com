@@ -37,6 +37,34 @@ a stock, enforcing device.
 
 ---
 
+## RE-017: Findings from an outside review of M1  (2026-11-24, status: worked-around)
+
+An independent agent reviewed the repository after M1. What it found that is
+about platform behavior rather than this project's choices:
+
+- **`Network.clearBrowserCookies` is profile-wide.** Sent through a debugger
+  session on one tab, it deletes cookies for every site in the profile. The
+  reviewer confirmed this in a disposable Chrome 157 profile: cookies for two
+  unrelated sites were gone. Attaching only to test-created tabs does not
+  limit it. (The M0 spikes ran this command on freshly installed test
+  channels and avoided stable Chrome for exactly this reason, but D-009 did
+  not carry the caution through.) Now D-027.
+- **A new incognito window joins the existing incognito session** if one is
+  open — same cookies, same site data — per Chrome's own documentation
+  (https://support.google.com/chrome/answer/95464). Spike S3 only ever ran
+  with no other incognito window open. Now D-027.
+- **A CDP event wait has to be failed explicitly when the connection goes.**
+  Rejecting pending commands is not enough; a wait on
+  `Tracing.tracingComplete` stayed pending after close. Fixed in
+  `shared/src/cdp-client.js`, which also accepts an abort signal now.
+- **ESLint 10 does not support every Node 22.** Its supported range starts at
+  22.13; vitest 5 excludes odd-numbered releases. `package.json` now declares
+  the intersection.
+
+The reviewer also noted that an automatic approval step refused to delete its
+temporary files and disposable Chrome profile; they remain on the machine,
+outside the repository.
+
 ## RE-016: M1 tooling surprises  (2026-11-23, status: worked-around)
 
 **Environment.** Windows 11, Node 24.13.1, npm 11.8.0; eslint 10.15.0,

@@ -33,7 +33,7 @@ function byId(id) {
 }
 
 function renderRunners() {
-    byId('runners').replaceChildren(...RUNNERS.map((r) => el('li', {}, [el('h3', { text: r.title }), el('p', { text: r.text }), el('p', { text: r.status, className: 'status' })])));
+    byId('runners').replaceChildren(...RUNNERS.map((r) => el('li', { className: 'featureCard' }, [el('h3', { text: r.title }), el('p', { text: r.text }), el('p', { text: r.status, className: 'status' })])));
 }
 
 /** @param {import('@capture/shared/clock').Clock} clock */

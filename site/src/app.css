@@ -1,76 +1,115 @@
-:root {
-    color-scheme: light dark;
-    --bg: #ffffff;
-    --fg: #1b1f24;
-    --muted: #5b6470;
-    --line: #d5dae1;
-    --panel: #f5f7fa;
-    --accent: #0b5cad;
-    --ok: #1a7f37;
-    --warn: #9a6700;
-    --no: #b3261e;
-    font: 16px/1.5 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-}
+/*
+ * Look and feel follows the waterfall-tools viewer, so that the two read as one
+ * product. The source of truth is the viewer's stylesheet,
+ * waterfall-tools/src/viewer/style.css. Rules marked "viewer:" below are copied
+ * from the rule they name; when the viewer changes one, change it here too.
+ * Nothing is imported from the submodule (D-029): the values are copies.
+ *
+ * The viewer has no dark theme, so this page has none either.
+ */
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #14171b;
-        --fg: #e6e9ee;
-        --muted: #9aa4b2;
-        --line: #333a44;
-        --panel: #1c2127;
-        --accent: #6cb0ff;
-        --ok: #4ac26b;
-        --warn: #d4a72c;
-        --no: #ff7b72;
-    }
+:root {
+    color-scheme: light;
+
+    /* viewer: :root */
+    --bg-color: #ffffff;
+    --text-color: #333333;
+    --border-color: #dddddd;
+    --primary-color: #0066cc;
+    --hover-color: #0055aa;
+
+    /* viewer: colours it writes as literals, named here */
+    --page-bg: #f5f5f5; /* #drop-zone */
+    --heading-color: #1a1a1a; /* .landing-content h2 */
+    --tagline-color: #555555; /* .tagline */
+    --muted-color: #666666; /* .featureCard p */
+    --hint-color: #444444; /* .upload-hint */
+    --error-color: #d32f2f; /* #load-error h2 */
+    --good-bg: #e6f4ea; /* .summary-metric.metric-bg-good */
+    --good-border: #ceead6;
+    --warning-bg: #fef7e0; /* .summary-metric.metric-bg-warning */
+    --warning-border: #fde293;
+    --poor-bg: #fce8e6; /* .summary-metric.metric-bg-poor */
+    --poor-border: #fad2cf;
+
+    /* capture only: text on the three state backgrounds, each at least 4.5:1 */
+    --good-text: #137333;
+    --warning-text: #7a4f01;
+    --poor-text: #b3261e;
 }
 
 * {
     box-sizing: border-box;
 }
 
+/* viewer: body, html */
 body {
     margin: 0;
-    background: var(--bg);
-    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--page-bg);
+    color: var(--text-color);
 }
 
-.site-header,
-main,
-.site-footer {
-    max-width: 52rem;
-    margin: 0 auto;
-    padding: 0 1.25rem;
+/* viewer: #drop-zone - except that this page scrolls as a document */
+.page {
+    display: flex;
+    min-height: 100vh;
+    padding: 1.5rem;
 }
 
-.site-header {
-    padding-top: 2rem;
+/* viewer: .landing-content */
+.landing-content {
+    position: relative;
+    margin: auto;
+    width: 100%;
+    max-width: calc(900px + 6rem);
+    padding: 3rem;
+    text-align: center;
+    border-radius: 16px;
+    background: linear-gradient(145deg, #ffffff, #f9f9f9);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    border: 2px solid transparent;
 }
 
+/* viewer: .landing-logo */
+.landing-logo {
+    position: absolute;
+    left: 2.5rem;
+    top: 2.5rem;
+    width: 100px;
+    height: auto;
+    border-radius: 20px;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
+    border: 3px solid #ffffff;
+}
+
+/* capture only: keeps the longer title clear of the logo */
+.landing-header {
+    padding: 0 120px;
+}
+
+/* viewer: .landing-content h2 */
 h1 {
-    margin: 0;
-    font-size: 2rem;
+    margin: 0 0 0.5rem;
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--heading-color);
 }
 
-h2 {
-    margin: 2rem 0 0.75rem;
+/* viewer: .tagline */
+.tagline {
+    margin: 0 0 2.5rem;
     font-size: 1.25rem;
-}
-
-.tagline,
-.site-footer {
-    color: var(--muted);
-}
-
-.site-footer {
-    margin-top: 3rem;
-    padding-bottom: 2rem;
-    font-size: 0.875rem;
+    color: var(--tagline-color);
 }
 
 a {
-    color: var(--accent);
+    color: var(--primary-color);
+}
+
+a:hover {
+    color: var(--hover-color);
 }
 
 code {
@@ -78,104 +117,191 @@ code {
     font-size: 0.9em;
 }
 
-.notice {
-    margin: 1.5rem 0 0;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--line);
-    border-left: 4px solid var(--warn);
-    border-radius: 6px;
-    background: var(--panel);
+section {
+    margin-bottom: 2rem;
 }
 
-.cards,
+/* viewer: .upload-hint */
+.section-hint {
+    margin: 0 0 1.5rem;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--hint-color);
+}
+
+/* capture only: a status banner, in the viewer's warning colours */
+.notice {
+    margin: 0 0 2rem;
+    padding: 0.9rem 1.25rem;
+    border: 1px solid var(--warning-border);
+    border-radius: 12px;
+    background: var(--warning-bg);
+    color: var(--text-color);
+    font-size: 0.95rem;
+    line-height: 1.4;
+    text-align: left;
+}
+
+/* viewer: .features */
+.features {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* viewer: .featureCard */
+.featureCard,
+.panel {
+    background: #ffffff;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    text-align: left;
+    border: 1px solid var(--border-color);
+}
+
+.featureCard {
+    flex: 1;
+}
+
+/* viewer: .featureCard h3 */
+.featureCard h3,
+.panel h2 {
+    margin: 0 0 0.75rem;
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+/* viewer: .featureCard p */
+.featureCard p,
+.panel p {
+    margin: 0;
+    color: var(--muted-color);
+    font-size: 0.95rem;
+    line-height: 1.4;
+}
+
+/* capture only: a small state label, in the viewer's metric colours */
+.status,
+.state {
+    display: inline-block;
+    padding: 2px 10px;
+    border: 1px solid var(--warning-border);
+    border-radius: 999px;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.featureCard p.status {
+    margin-top: 1rem;
+    color: var(--warning-text);
+    font-size: 0.8rem;
+}
+
 .checks {
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
-.cards {
-    display: grid;
-    gap: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-}
-
-.cards li {
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    background: var(--panel);
-}
-
-.cards h3 {
-    margin: 0 0 0.25rem;
-    font-size: 1rem;
-}
-
-.cards p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 0.9rem;
-}
-
-.cards .status {
-    margin-top: 0.5rem;
-    font-size: 0.8rem;
-    color: var(--warn);
-}
-
 .checks li {
     display: grid;
-    grid-template-columns: 5.5rem 1fr;
-    gap: 0.75rem;
-    padding: 0.5rem 0;
-    border-bottom: 1px solid var(--line);
+    grid-template-columns: 4rem 1fr;
+    align-items: start;
+    gap: 1rem;
+    padding: 0.75rem 0;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.95rem;
+    line-height: 1.4;
 }
 
 .checks .state {
-    font-weight: 600;
+    text-align: center;
 }
 
 .checks .state[data-state='yes'] {
-    color: var(--ok);
+    border-color: var(--good-border);
+    background: var(--good-bg);
+    color: var(--good-text);
 }
 
 .checks .state[data-state='no'] {
-    color: var(--no);
-}
-
-.checks .state[data-state='info'] {
-    color: var(--warn);
+    border-color: var(--poor-border);
+    background: var(--poor-bg);
+    color: var(--poor-text);
 }
 
 .checks .detail {
     display: block;
-    color: var(--muted);
+    color: var(--muted-color);
     font-size: 0.875rem;
 }
 
-button {
-    padding: 0.55rem 1rem;
-    border: 1px solid var(--accent);
-    border-radius: 6px;
-    background: var(--accent);
-    color: var(--bg);
-    font: inherit;
-    font-weight: 600;
-    cursor: pointer;
+/* capture only: a panel whose point is its one button, centred like the viewer's .upload-section */
+.action-panel {
+    text-align: center;
 }
 
-button:disabled {
+.action-panel p + p {
+    margin-top: 1.5rem;
+}
+
+/* viewer: #upload-btn */
+.primary-btn {
+    padding: 14px 32px;
+    font: inherit;
+    font-size: 1.15rem;
+    font-weight: 600;
+    cursor: pointer;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    transition:
+        background-color 0.2s,
+        transform 0.1s,
+        box-shadow 0.2s;
+    box-shadow: 0 4px 10px rgba(0, 102, 204, 0.3);
+}
+
+.primary-btn:hover:not(:disabled) {
+    background-color: var(--hover-color);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(0, 102, 204, 0.4);
+}
+
+.primary-btn:active:not(:disabled) {
+    transform: translateY(1px);
+    box-shadow: 0 2px 5px rgba(0, 102, 204, 0.3);
+}
+
+.primary-btn:disabled {
     opacity: 0.6;
     cursor: progress;
 }
 
+/* capture only: the viewer shows no focus ring; a keyboard user needs one */
+.primary-btn:focus-visible,
+a:focus-visible {
+    outline: 3px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* viewer: .summary-metric */
 .result {
-    margin-top: 0.75rem;
-    padding: 0.9rem 1rem;
-    border: 1px solid var(--line);
+    margin-top: 1.5rem;
+    padding: 15px;
+    border: 1px solid #eeeeee;
     border-radius: 6px;
-    background: var(--panel);
+    background: #fbfbfb;
+    font-size: 0.95rem;
+    line-height: 1.4;
+    text-align: left;
 }
 
 .result dl {
@@ -186,7 +312,7 @@ button:disabled {
 }
 
 .result dt {
-    color: var(--muted);
+    color: var(--muted-color);
 }
 
 .result dd {
@@ -194,6 +320,73 @@ button:disabled {
     overflow-wrap: anywhere;
 }
 
-.error {
-    color: var(--no);
+.result a {
+    font-weight: 600;
+}
+
+.error,
+.panel p.error {
+    color: var(--error-color);
+}
+
+/* viewer: .external-links */
+.external-links {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}
+
+/* viewer: .github-link */
+.github-link {
+    text-decoration: none;
+    color: #ffffff;
+    background-color: #24292e;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.95rem;
+    transition: background-color 0.2s;
+    display: inline-block;
+}
+
+.github-link:hover {
+    color: #ffffff;
+    background-color: #000000;
+}
+
+/* viewer: .sub-hint - one step darker, because #777 on white falls short of 4.5:1 */
+.sub-hint {
+    margin: 1rem 0 0;
+    font-size: 0.9rem;
+    color: var(--muted-color);
+}
+
+/* viewer: the 768px breakpoint */
+@media (max-width: 768px) {
+    .page {
+        padding: 1rem;
+    }
+
+    .landing-content {
+        padding: 1.5rem;
+    }
+
+    .landing-logo {
+        position: relative;
+        left: 0;
+        top: 0;
+        margin-bottom: 1.5rem;
+    }
+
+    .landing-header {
+        padding: 0;
+    }
+
+    h1 {
+        font-size: 2rem;
+    }
+
+    .features {
+        flex-direction: column;
+    }
 }

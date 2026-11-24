@@ -20,6 +20,8 @@ describe('CDP allowlist', () => {
         'Page.printToPDF',
         'Storage.getCookies',
         'IO.resolveBlob',
+        // Clears every cookie in the profile, not just the tested site's: refused (see the allowlist).
+        'Network.clearBrowserCookies',
     ])('refuses %s', (method) => {
         expect(vetCommand(method, {})).toMatch(/not on the allowlist/);
     });

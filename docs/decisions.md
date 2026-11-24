@@ -36,9 +36,139 @@ D-015 and D-016 followed the transport and NetLog spikes, and D-017 to D-019 the
 extension spike; D-020 followed the hand-off spike and D-021 the video-processing spike.
 D-022 is the helper security design; D-023 and D-024 closed the triage of
 proposed features, and D-025 fixed the toolchain. D-026 came out of the first run of the
-licence gate, in M1.
+licence gate, in M1. D-027..D-029 answer an outside review of the project on
+2026-11-24.
 
 ---
+
+## D-029: waterfall-tools is a git submodule of this repository, for working on both together  (2026-11-24, status: accepted; amends D-006)
+
+**Decision.** The waterfall-tools repository is added to this one as a git
+submodule, so that a change spanning both — the artifact format, its parser,
+the viewer's `postMessage` load — can be developed and tried locally in one
+place and then pushed to each project.
+
+**Context.** Proposed by the project owner in answer to an outside review that
+asked for one complete capture-to-viewer path to be brought forward: "The
+waterfall-tools viewer can be a submodule of this project that allows us to
+work on changes to both at the same time locally and push changes to both
+projects." Until now changes needed in waterfall-tools were only listed here
+as cross-repo dependencies for the owner to schedule.
+
+**Consequences.**
+- D-006 still holds where it matters: the product shows results in the
+  production viewer at `waterfall-tools.com`. The submodule is a development
+  convenience. Nothing from it is bundled into the capture site, the
+  extension or the helper, and the site build must not reach into it.
+- Agents may now change waterfall-tools through the submodule. That
+  repository has its own `AGENTS.md`, and its rules apply to work inside it —
+  including that agents never commit there either. The human commits in
+  both repositories, and the submodule pointer here moves only by the
+  owner's commit.
+- This repository's lint, type check, tests and licence gate must not pick
+  up the submodule's files; waterfall-tools keeps its own gates.
+- D-011 is unchanged: the artifact spec is authored in waterfall-tools — now
+  reachable from here.
+- Continuous integration needs to fetch the submodule only for jobs that use
+  it. It is about 875 MB, mostly sample captures, so a job that does should
+  fetch it shallowly.
+- Added on 2026-11-24 at path `waterfall-tools/`, by HTTPS URL so it can be
+  fetched without keys, pinned at commit `36c2d86` (v0.4-7).
+
+**Reopen if.** Keeping two repositories in step through a submodule pointer
+costs more than it saves.
+
+## D-028: When a single page load is over  (2026-11-24, status: accepted)
+
+**Decision.** For one page load, in every runner:
+
+- The run **ends** when the page's load event has fired **and** there has
+  then been a continuous **2 seconds** with no network request in flight.
+- **Requests that do not hold a run open:** WebSockets, event streams, and
+  any request that has been open for more than **10 seconds**.
+- **Overall limit: 120 seconds** from the start of navigation. A run that
+  reaches it stops and is recorded as timed out.
+- **A failed navigation ends the run at once** — the browser reports that the
+  main document could not be loaded.
+- **Every ending keeps what was captured.** The result records how the run
+  ended: completed, timed out, navigation failed, or cancelled.
+
+**Context.** Decided by the project owner on a proposal from the scaffolding
+agent, after an outside review pointed out that the pipeline of M2 needs
+concrete rules while the test-model design was deferred to after the first
+release. The 2 second quiet period and the 120 second limit follow classic
+WebPageTest's defaults.
+
+**Consequences.**
+- Redirects are part of the load: the run follows them and records where it
+  ended up. A main document that arrives with an HTTP error status is still a
+  page that loaded; it completes normally and the status is in the capture.
+- The quiet period is judged from CDP `Network` events and timed on the
+  worker-backed clock, never page timers (rough-edges RE-015).
+- "Open for more than 10 seconds" is a heuristic for long polling; a genuine
+  slow download longer than that will not hold the run open either. That is
+  accepted, and the limits are constants to revisit with evidence.
+- Multiple runs, median selection, repeat view and scripting remain deferred
+  (D-012); this entry settles only the single load.
+- These rules are testable with controlled pages, and M2's exit criteria now
+  require that.
+
+**Reopen if.** The controlled-page tests show the rule cutting off real page
+activity or holding runs open needlessly.
+
+## D-027: Isolation corrections — no cookie deletion without consent; incognito is not always fresh  (2026-11-24, status: accepted; amends D-009)
+
+**Decision.** Two corrections to D-009, both found by an outside review of the
+project.
+
+1. **Deleting cookies needs the user's explicit consent.** When the test runs
+   in the same browser the user is working in and incognito is not available,
+   the user is asked whether it is acceptable to delete all cookies in that
+   browser, or whether only the cache should be cleared. A "never ask again"
+   option keeps their answer for later runs. Nothing is deleted before they
+   answer.
+2. **An incognito window is used only when it would be a fresh session.** If
+   another incognito window is already open, a new one shares its cookies and
+   site data. The extension runner detects that, does not use incognito, says
+   why, and falls back to the normal profile under rule 1 — offering closing
+   the other window, or the helper, as cleaner alternatives. It never closes
+   or clears the user's existing incognito window.
+
+**Context.** D-009 made "a CDP-level clear" the Auto behaviour for a browser
+the user lives in, without saying what that clears. The reviewer confirmed in
+Chrome 157 that `Network.clearBrowserCookies`, sent through one tab, deletes
+the cookies of unrelated sites: the command is profile-wide, and restricting
+the debugger to test-created tabs does not contain it. The reviewer also
+pointed to Chrome's documentation that additional incognito windows continue
+the existing incognito session. Rule 1 is the owner's answer, in their words:
+"If the browser is the same browser that the user is running the test in and
+incognito isn't available, prompt the user to see if it is OK to delete all
+cookies in the browser or if only cache should be cleared (and offer a 'never
+ask again' check box that keeps their decision going forward)". Rule 2 is the
+option the owner chose.
+
+**Consequences.**
+- `Network.clearBrowserCookies` is off the shared CDP allowlist
+  (`shared/src/cdp-allowlist.js`). It may be reached only through a path
+  that carries the user's consent.
+- **Where that consent is held matters, and is not decided yet.** If the
+  page merely tells the relay "the user agreed", a compromised capture site
+  can say so too and wipe every cookie in the user's browser. Proposed for
+  M4: the extension asks and remembers, in its own interface and storage, so
+  the page cannot forge the answer.
+- The owner's answer covers the same-browser case. **Stable Chrome on an
+  attached Android phone was not addressed.** Until it is, the Android runner
+  treats it the same way: cache only by default, cookies never deleted
+  without the user being asked.
+- Clearing the cache is still a profile-wide effect, though it loses no data.
+- The result's environment block records what was actually done, including
+  "shared profile, cookies kept" and "incognito not used: another incognito
+  window was open".
+- The helper is unaffected: every run gets a new profile (D-022).
+
+**Reopen if.** A scoped way to clear one site's state proves reliable enough
+to offer as a third answer; or the prompt proves so frequent that users
+routinely pick the destructive option without reading it.
 
 ## D-026: Licence policy — BlueOak-1.0.0 allowed; a development-only exception for wrangler  (2026-11-23, status: accepted; amends D-002)
 
@@ -687,7 +817,7 @@ sign-in library) as an exception to record.
 owner wants usage numbers (cookieless page analytics was the considered
 alternative).
 
-## D-009: Isolation is user-selectable with an Auto default; results say what was done  (2026-11-23, status: accepted)
+## D-009: Isolation is user-selectable with an Auto default; results say what was done  (2026-11-23, status: accepted; amended by D-027)
 
 **Decision.** The user may select any installed browser as the test target
 and chooses how aggressively its state is cleared. The default is **Auto**:
@@ -777,7 +907,7 @@ needs a version field from v0.
 get viewing working materially sooner without giving up what the manifest
 buys; or waterfall-tools cannot reasonably ingest the new format.
 
-## D-006: Rendering belongs to production waterfall-tools; two result modes  (2026-11-23, status: accepted)
+## D-006: Rendering belongs to production waterfall-tools; two result modes  (2026-11-23, status: accepted; amended by D-029)
 
 **Decision.** This project does not render waterfalls. Results are displayed
 by the production waterfall-tools viewer, reached in two ways, both of which

@@ -46,6 +46,7 @@ on a spike result, not on the owner.
 | Capture diagnostics log | confirmed | *triage.* Exportable log of adb / CDP steps for a failed run. Must not leave the machine on its own (D-010). |
 | Scripted / multi-step tests, custom headers, blocked hosts | confirmed | *triage.* Classic WebPageTest test options. The largest item on this list; the scripting language and command set are undefined — see Q9. |
 | No analytics or telemetry | confirmed | *triage.* No analytics, error reporting, or third-party scripts on the site. D-010. |
+| Look and feel matches the waterfall-tools viewer | confirmed | Owner, 2026-11-24: the two should "feel like a coherent product". The viewer's stylesheet is the source of truth; see [architecture.md](architecture.md) §3.12. Light theme only, because the viewer is. |
 
 ## Android capture over WebUSB
 
@@ -57,7 +58,7 @@ on a spike result, not on the owner.
 | Real NetLog capture on Android | confirmed | Owner's intent, stated conditionally: a Chrome mechanism for reading command-line switches from a non-root location "could solve the real netlog case if it is enabled". S2: it works on the test phone — written to `/sdcard/Download`, pulled over adb, read by waterfall-tools — pending confirmation on a stock phone with SELinux enforcing (RE-009). |
 | ADB-over-WebUSB transport via Tango ADB | confirmed | *triage.* `@yume-chan/adb` + `@yume-chan/adb-daemon-webusb` (MIT, checked — D-002) rather than a home-grown ADB implementation. S1 ran a full capture pass on it without a failure (RE-007). The WebSocket/CDP layer on top of the raw ADB socket is ours to write. |
 | Local `adb` conflict detection and guidance | confirmed | *triage.* A running local adb server claims the USB interface; detect the failure and tell the user what to do. |
-| Any installed browser selectable, with user-chosen wipe level | confirmed | *triage.* Default "Auto": stable Chrome gets a CDP-level clear only, test channels get a full app-data wipe. D-009. |
+| Any installed browser selectable, with user-chosen wipe level | confirmed | *triage.* Default "Auto": test channels get a full app-data wipe. Stable Chrome gets the cache cleared and nothing else unless the user agrees to more; whether Android stable follows the desktop prompt exactly is not yet confirmed by the owner. D-009, D-027. |
 | Offer to install a test browser from hosted APK packages | confirmed | *triage, added by the owner.* Both open-source Chromium builds and official Chrome channel builds, the latter subject to a redistribution check. Package source, hosting, and install mechanics: Q10. |
 | Guaranteed device cleanup | confirmed | *triage.* Whatever a run changes on the phone (debug-app setting, command-line file, pulled files) is restored on success, failure, cancel, and next connect after an unplug. |
 | Test on the device's real radio | confirmed | *triage.* An unthrottled mode that records the actual cellular / Wi-Fi connection as the "profile". |
@@ -75,7 +76,7 @@ on a spike result, not on the owner.
 | Capture in the user's local browser, driven by an extension, in a dedicated tab | confirmed | Owner's kickoff scope. The extension source lives in this repo. D-005. |
 | Accurate network throttling via Chrome's socket-layer emulation | confirmed | Same owner-raised capability as on Android. S1 found it is behind a default-off feature with no `chrome://flags` entry, and an extension cannot pass command-line switches to its own browser. Per D-013: desktop runs use request-level DevTools throttling until the feature is on by default (or the user starts Chrome with the switch), and the result records which engine applied. RE-001. |
 | Video capture using Chrome's native screen recording | confirmed | Same owner-raised capability. S1: works on desktop 157 and Canary 160 over the remote-debugging socket (AV1 MP4). Reachability through `chrome.debugger`: Q3. RE-002. |
-| Incognito isolation with fallback and user override | confirmed | *triage.* Default: fresh incognito window per run when the extension is allowed in incognito, otherwise the normal profile with a CDP-level clear; the user can direct either explicitly. D-009. S3 verified creating an incognito window, attaching, capturing, and closing it, and detecting whether access is allowed (RE-011). |
+| Incognito isolation with fallback and user override | confirmed | *triage.* A fresh incognito window per run when the extension is allowed in incognito **and no other incognito window is open** — otherwise it would share that session — else the normal profile. In the normal profile the user is asked whether to delete all cookies or clear the cache only, with a "never ask again" choice; nothing is deleted unasked. D-009, D-027. S3 verified creating, attaching to, and closing an incognito window (RE-011). |
 | Managed-profile detection | confirmed | *triage.* Enterprise policy can block debugger attach; detect and explain. |
 | Chrome Web Store distribution at first release | confirmed | *triage.* Load-unpacked during development, a store listing for the first public release. Gives a fixed extension ID; every update waits on store review, so the site must tolerate older extension versions. |
 | CDP access through `chrome.debugger`, with the extension as a thin bridge | confirmed | D-018. The pipeline runs in the page; the extension relays CDP and manages test tabs. S3 ran a full capture pass this way (RE-011). |
@@ -234,7 +235,7 @@ Ordered by how much work a late answer would invalidate. Spike names refer to
    covered by S1 and S3.
 8. *Answered 2026-11-23 — sign-in only for Drive upload; no telemetry.* See
    D-010.
-9. **Test model details.** Multi-run with median and first/repeat view are
+9. **Test model details.** *The end of a single page load is decided: D-028.* Multi-run with median and first/repeat view are
    confirmed, and Android video alignment is settled (orange frame, D-014);
    still open are the median metric, alignment of desktop native recording,
    and the scripting model — whether to adopt WebPageTest's

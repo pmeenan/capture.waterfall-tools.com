@@ -27,7 +27,10 @@ export const ALLOWED_METHODS = new Set([
     'Network.enable',
     'Network.emulateNetworkConditionsByRule',
     'Network.clearBrowserCache',
-    'Network.clearBrowserCookies',
+    // Network.clearBrowserCookies is deliberately absent: it deletes every cookie in the profile,
+    // for every site, whichever tab it is sent through. In a user's own browser that is data loss
+    // far beyond the test. It may only ever be reached through a path that carries the user's
+    // explicit consent, held where the page cannot forge it (D-027).
     'Tracing.start',
     'Tracing.end',
     'IO.read',

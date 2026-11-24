@@ -37,16 +37,22 @@ affected docs. Until then, these govern.
   here. (D-005)
 - **No renderer here.** Results are shown by the production waterfall-tools
   viewer: embedded iframe fed by `postMessage`, or a published URL; the
-  default is user-selectable. Never bundle or fork the viewer. (D-006)
+  default is user-selectable. waterfall-tools is a submodule here for working
+  on both together; never ship it, and never fork the viewer. (D-006, D-029)
 - **One artifact contract.** Every runner emits the same new manifest-based
   result zip, versioned from v0. (D-007) Its spec lives in the waterfall-tools
   repo; capture code follows the spec, never the reverse. (D-011)
 - **User-provided storage only.** Local download, Google Drive (`drive.file`
   scope only), S3-compatible bucket, Dropbox. Nothing leaves the user's
   machine without an explicit user action. (D-008)
-- **Never wipe by surprise.** Isolation level is the user's choice; the Auto
-  default full-wipes only test-channel browsers and uses a CDP-level clear on
-  stable Chrome. Every result records the isolation actually applied. (D-009)
+- **Never wipe by surprise.** Isolation level is the user's choice. Auto
+  full-wipes only test-channel browsers. In a browser the user lives in,
+  nothing is deleted unasked: cookie clearing is profile-wide and needs
+  explicit consent. Incognito counts as fresh only if no other incognito
+  window is open. Every result records what was actually done. (D-009, D-027)
+- **A page load ends by one rule.** Load event, then 2 s of network quiet,
+  within 120 s; a failed navigation ends at once; every ending keeps a
+  partial result. (D-028)
 - **Throttle with DevTools emulation.** Socket-layer when the browser has it
   enabled, request-level otherwise; never refuse a run over it, and record
   the engine that actually applied. (D-013)
@@ -66,12 +72,13 @@ affected docs. Until then, these govern.
 
 | Path | What lives there |
 | --- | --- |
-| `site/` | The capture page: `index.html`, `src/`, and `public/` (sample trace, `_headers` with the Content-Security-Policy) |
+| `site/` | The capture page: `index.html`, `src/`, and `public/` (sample trace, logo, `_headers` with the Content-Security-Policy). Styled to match the viewer: [architecture §3.12](docs/architecture.md) |
 | `shared/src/` | Used by more than one deliverable: `clock`, `cdp-allowlist`, `cdp-client`, `ws-framing`, `zip`, `artifact` |
 | `extension/` | The MV3 bridge — placeholder until M4 |
 | `helper/` | The `npx` helper and dev bridge — placeholder until M2 |
 | `tests/` | vitest unit tests; `helpers/` holds test doubles |
 | `scripts/` | `build.js`, `preview.js`, `check-licenses.js`, `deploy.js` |
+| `waterfall-tools/` | Git submodule: the viewer's repository, for changes that span both (D-029). Its own `AGENTS.md` governs work inside it. Excluded from this repo's lint, type check, tests and licence gate; never imported by the site, extension or helper. |
 | `docs/` | Vision, plan, architecture, decisions, features, rough edges, workflow |
 
 Checks: `npm run check` runs lint, type check, tests, build and the licence
@@ -95,7 +102,9 @@ build → commit loop, on-demand reviews, and the human commit gate.
 
 The sibling waterfall-tools repo is the viewer this project feeds; its
 `AGENTS.md` and `README.md` are the reference for the viewer's API and input
-formats. Changes needed there are tracked in features.md, not made from here.
+formats. It is a git submodule of this repository (D-029): changes there may
+be made through the submodule, under that repository's own `AGENTS.md`, and
+are committed by the human like everything else.
 
 ## Rules for all agents
 
@@ -144,14 +153,14 @@ formats. Changes needed there are tracked in features.md, not made from here.
 
 ## Current status
 
-Milestone **M1 (foundation)**, built and waiting on the owner. M0 exited on
-2026-11-23. The workspaces, toolchain, shared modules (clock, CDP allowlist
-and client, WebSocket framing, zip, provisional artifact builder), the capture
-page shell, the licence gate and the deploy script exist and pass
-`npm run check`. Still to happen for M1 to exit: CI running on a pull
-request, and a first deploy by the owner. Next is M2, the helper runner and
-the capture pipeline. Open from M0: the artifact format (authored in the
-waterfall-tools repo), publishing (spike S5), and a stock-phone confirmation
-of the Android file-access results. See [docs/plan.md](docs/plan.md). Keep
-this paragraph short and current when plan.md milestone status changes
-(rule 4).
+Milestone **M1 (foundation)** is built and committed; it exits when CI has
+run on a pull request and the owner has made a first deploy. An outside
+review on 2026-11-24 led to three decisions (D-027 isolation corrections,
+D-028 the end-of-load rule, D-029 waterfall-tools as a submodule) and to
+plan changes: M2 now also takes a first result into the embedded viewer and
+is verified against controlled test pages, and spike S5 for one storage
+target runs before M3. Next is M2. Open: the full artifact format,
+publishing, a stock-phone confirmation of the Android file-access results,
+and where cookie-deletion consent is held (D-027). See
+[docs/plan.md](docs/plan.md). Keep this paragraph short and current when
+plan.md milestone status changes (rule 4).

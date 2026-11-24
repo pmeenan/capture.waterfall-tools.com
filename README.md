@@ -30,7 +30,7 @@ next milestone. See [docs/plan.md](docs/plan.md).
 
 ## Development
 
-Node 22 or newer.
+Node 22.13 or newer in the 22 line, or Node 24.
 
 ```
 npm ci
@@ -41,6 +41,11 @@ npm run check          # lint, type check, tests, build, licence gate (what CI r
 Individually: `npm run lint`, `npm run typecheck`, `npm test`, `npm run build`,
 `npm run licenses`. After a build, `node scripts/preview.js` serves `dist/site`
 with the same response headers as production.
+
+The `waterfall-tools/` folder is a git submodule holding the viewer's
+repository, used only when a change spans both projects. It is large (about
+875 MB) and nothing above needs it: fetch it with `git submodule update
+--init` when you do.
 
 Deploying is done by the project owner: `npm run deploy:dry-run` shows what
 would be uploaded, `npm run deploy` uploads it, and only from a clean working

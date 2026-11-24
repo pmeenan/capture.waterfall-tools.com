@@ -25,7 +25,7 @@ const encoder = new TextEncoder();
  * @property {'android' | 'extension' | 'helper' | 'sample'} runner
  * @property {string} [browser] product and version, for example `Chrome/160.0.8180.0`
  * @property {string} [device] for Android, the model
- * @property {'socket-layer' | 'request-level' | 'none'} [throttlingEngine]
+ * @property {'socket-layer' | 'request-level' | 'none' | 'unknown'} [throttlingEngine] `unknown` when it could not be determined - never a guess (D-013)
  * @property {string} [isolation] the isolation level applied
  * @property {'browser' | 'page'} [traceScope]
  * @property {string} [videoSource]

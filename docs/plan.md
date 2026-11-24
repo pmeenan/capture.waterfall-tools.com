@@ -268,22 +268,50 @@ through its library entry point in a unit test). Two exit criteria are the
 owner's to complete: a pull request for CI to run on, and a first deploy so
 the shell is reachable at the production address.
 
-### M2 — Helper runner and the capture pipeline  `pending`
+### M2 — Helper runner, capture pipeline, and a first result in the viewer  `pending`
 
 Scope: the helper program — pairing, the D-022 guards, the filtered relay,
 launching Chrome on a debugging pipe with a temporary profile — and the
 first version of the capture pipeline: attach, trace, navigate, end of load,
-collect, restore. Preflight for the helper, including Chrome's loopback
-permission states; run progress and cancel.
+collect, restore, ending a run by the rule of D-028. Preflight for the
+helper, including Chrome's loopback permission states; run progress and
+cancel.
 
-Waiting on: nothing.
+Added after the review of 2026-11-24:
+
+- **A first result in the viewer.** Alongside the helper, agree a minimal
+  artifact format and take one result from the helper into the embedded
+  viewer: the format's first version and its parser, and the open
+  `postMessage` load, are written in waterfall-tools through the submodule
+  (D-029, D-011, D-020). This is the part of the old "View" milestone that
+  does not depend on the other runners.
+- **Controlled test pages.** A local test server with pages whose behavior
+  is known in advance: a fixed set of requests, redirects, resources
+  delayed by known amounts, a connection that stays open, a navigation that
+  fails.
+
+Waiting on: the owner's commits in the waterfall-tools repository for the
+viewer changes. (The submodule was added on 2026-11-24, pinned at
+waterfall-tools `36c2d86`, v0.4-7.)
 
 **Exit criteria:** an agent runs a test of a public URL through the helper
-unattended and gets a result whose trace converts with waterfall-tools; the
+unattended and gets a result whose trace converts with waterfall-tools;
+against the controlled pages, the capture contains exactly the requests
+the page makes, the run ends where D-028 says it should for each case
+(redirect, delayed resource, open connection, failed navigation, the time
+limit), and each ending is recorded correctly; that result opens in the
+embedded viewer, built from the submodule, without leaving the machine; the
 guard tests of RE-014 (wrong origin, wrong secret, foreign `Host`, no
 `Origin`, abuse through the relay) run in CI and pass; a test proves the
 pipeline calls nothing outside the allowlist; cancelling mid-run leaves no
 browser process and no temporary profile behind.
+
+**Before M3 starts: spike S5 for one storage target** (moved forward by the
+review of 2026-11-24). Upload one result and open its shareable link from a
+different browser profile. Publishing is a success criterion in the vision
+and its answer could change the provider design, so it is tested before two
+more runners are built on the assumption that it works. Needs the owner's
+account and credentials for that target.
 
 ### M3 — Android runner  `pending`
 
@@ -332,19 +360,23 @@ Waiting on: the artifact spec for the final names of what is recorded (Q5).
 **Exit criteria:** on each runner a result carries a trace, video where the
 runner supports it, and an environment block whose throttling engine,
 isolation level, trace scope and video source match what was done — checked
-in tests by running the helper with and without the throttling switch;
+in tests by running the helper with and without the throttling switch, with
+the engine recorded as unknown whenever connection timing cannot tell the
+two apart;
 Android video analysis reproduces the RE-013 results on recorded files in
 unit tests; a NetLog pulled from the phone converts with waterfall-tools.
 
-### M6 — View  `pending`
+### M6 — View, the rest  `pending`
 
-Scope: the embedded viewer and the `postMessage` hand-off (D-020); the
-selectable default result mode; the artifact builder moved from the
-provisional layout to the published spec.
+The first result in the viewer moved into M2. What remains here: results
+from the Android and extension runners in the embedded viewer, video and the
+full environment block in the format, the selectable default result mode,
+and the artifact builder conforming to the published spec rather than the
+minimal first version.
 
-Waiting on, from waterfall-tools: the artifact spec and its parser, and the
-open `postMessage` load in the viewer. **This milestone cannot finish
-before those ship.**
+Waiting on, from waterfall-tools: the full artifact spec, and the viewer
+changes of M2 being published on the production site. **This milestone
+cannot finish before those ship.**
 
 **Exit criteria:** a result from each runner appears in the embedded
 production viewer without leaving the machine; the artifact validates
@@ -413,8 +445,9 @@ Scripted multi-step tests, custom request headers, blocked hosts.
 | Item | Blocks |
 | --- | --- |
 | Review of the architecture draft and of this ladder | M0 exit |
-| Artifact v0 spec, authored in the waterfall-tools repo (Q5, D-011) | M6, and final field names in M5 |
+| Commits in the waterfall-tools repository, made through the submodule (D-029) | the viewer part of M2 |
+| Artifact spec beyond the minimal first version (Q5, D-011) | M6, and final field names in M5 |
 | waterfall-tools: parser for the spec, open `postMessage` load, load by reference | M6, M7 |
-| Spike S5: OAuth client ids and accounts for Drive and Dropbox (Q6) | M7 |
+| Spike S5 for one target: an account and credentials (Q6) | the start of M3; the remaining targets block M7 |
 | A stock Android phone for one confirmation pass (RE-009) | public Android claims in M3 and M5 |
 | Web Store developer account and npm publishing rights | M8 |

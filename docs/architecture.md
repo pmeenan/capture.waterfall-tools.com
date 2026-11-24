@@ -107,7 +107,7 @@ doors:
 | Trace | page-level or browser-level | tab-level: no netlog events (RE-010) | browser-level with netlog, or page-level |
 | Real NetLog | yes, via command-line switch and file pull (RE-009) | no (D-019) | yes; complete after a clean close (RE-014) |
 | Video | `screenrecord` + orange cover; trace screenshots opt-in; native recording unavailable (RE-002, RE-006) | native recording, AV1 MP4 | native recording, AV1 MP4 |
-| Isolation (Auto) | stable: CDP-level clear; test channels: app-data wipe | incognito window if allowed, else normal profile + CDP-level clear | new temporary profile per run |
+| Isolation (Auto) | test channels: app-data wipe; stable: cache only, cookies never deleted unasked (D-027) | incognito if allowed and no other incognito window is open; otherwise the normal profile, asking whether to delete cookies or clear cache only (D-027) | new temporary profile per run |
 | Known distortion | the recording shows the whole display; analysis crops it | the debugging bar takes 56 px off the viewport at attach | none observed |
 | What the user must do | stop any local adb; approve the device chooser and, once, the on-phone prompt | install the extension; optionally allow it in incognito | run the helper; allow Chrome's loopback permission once |
 
@@ -160,14 +160,18 @@ The same sequence for every runner; steps in *italics* are runner-specific.
    cover, start `screenrecord`, wait for it to be recording (D-014).
 9. **Navigate.** Android with screenrecord: remove the cover and navigate
    inside two animation frames, as wptagent does.
-10. **Wait for the end of the load.** The first release uses the load event
-    plus a quiet period; the criteria belong to the test-model design (Q9).
+10. **Wait for the end of the load** by the rule of D-028: the load event,
+    then 2 seconds with no request in flight (WebSockets, event streams and
+    requests open longer than 10 seconds do not count), within a 120 second
+    limit; a failed navigation ends the run at once. Every ending keeps what
+    was captured and records how the run ended.
 11. **Stop video, then the trace**, and read both back through `IO.read`.
 12. ***Collect what lives outside CDP.*** Android: stop `screenrecord` and
     pull the file; force-stop the browser and pull the NetLog (D-016). Helper:
     close the browser cleanly and read the NetLog.
 13. **Detect what actually applied**: the throttling engine, from connection
-    setup time against the configured latency (RE-001); the isolation level;
+    setup time against the configured latency (RE-001) — recorded as unknown
+    when that cannot tell the two engines apart, never guessed; the isolation level;
     the trace scope; the video source.
 14. ***Restore state.*** Put back anything step 2 saved, delete files left on
     the device, close tabs and windows — on success, failure and cancel
@@ -317,6 +321,31 @@ an implementation choice to make with real numbers.
   publish: results can contain cookies and credentials, and a raw Android
   recording shows the whole display (D-021).
 
+### 3.12 Look and feel
+
+The capture page and the viewer are meant to read as one product, so the
+capture page takes its look from the viewer rather than having a design of
+its own. The source of truth is the viewer's stylesheet,
+`waterfall-tools/src/viewer/style.css`:
+
+- `site/src/app.css` copies the viewer's custom properties, font stack and
+  landing-page rules (the grey backdrop, the centred white card, the logo,
+  the heading and tagline, the feature cards, the primary button, the GitHub
+  link, the 768px breakpoint) under the same class names. Each copied rule is
+  marked `viewer:` with the rule it came from, so drift shows up in a diff.
+- New capture UI reuses a viewer pattern when one exists — the viewer's URL
+  field and joined button for the test URL, its header and tabs once there
+  is more than one view — and only then adds something of its own, in the
+  viewer's colours.
+- The logo and favicon in `site/public/` are copies of the viewer's. Nothing
+  is imported from the submodule (D-029).
+- The viewer has no dark theme, so the capture page has none. If the viewer
+  gains one, capture follows it.
+
+Two places where capture departs on purpose: keyboard focus rings, which the
+viewer does not draw, and small grey text one step darker than the viewer's
+`#777`, which falls short of 4.5:1 on white.
+
 ## 4. Trust boundaries
 
 - **The capture origin is the trust anchor** for both the extension and the
@@ -333,8 +362,13 @@ an implementation choice to make with real numbers.
   them into the capture page's DOM unescaped.
 - **Captured data is sensitive.** It can hold the user's cookies and
   credentials for the tested site. Nothing leaves the machine without an
-  explicit user action (D-008), and only incognito or a fresh profile keeps
-  the user's own session out of a result (D-009).
+  explicit user action (D-008). A fresh profile keeps the user's own session
+  out of a result. Incognito does so only when no other incognito window is
+  open, since a new one would share that session; the extension runner
+  checks, and falls back to the normal profile when it is not fresh (D-027).
+- **Nothing in the user's own browser is deleted without being asked.**
+  Clearing cookies is profile-wide, so it needs explicit consent, and that
+  consent has to be held where a compromised page cannot forge it (D-027).
 - **The viewer hand-off is open by design**: any embedder may post a result
   to the viewer, and the viewer treats it as untrusted input (D-020).
 
@@ -382,6 +416,9 @@ compatible.
 
 ## 7. What this project needs from waterfall-tools
 
+waterfall-tools is a git submodule of this repository (D-029), so these can
+be developed and tried together locally; each still lands by the owner's
+commit in that repository, and the product still uses the production viewer.
 Tracked as rows in [features.md](features.md); listed here because the
 architecture does not work without them:
 
