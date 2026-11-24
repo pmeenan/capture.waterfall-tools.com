@@ -1,0 +1,18 @@
+{
+  "//": "Type CHECK only (D-025) for code that runs in Node: the helper. No DOM library, so a browser API used there is an error. The page and shared code are checked by tsconfig.json.",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "skipLibCheck": true,
+    "noUnusedLocals": true,
+    "noImplicitOverride": true
+  },
+  "include": ["helper"]
+}

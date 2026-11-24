@@ -54,39 +54,46 @@ export function parseUpgradeResponse(headerBytes) {
 }
 
 /**
- * Encode one client frame. Client frames are always masked.
+ * Encode one frame. A client always masks its frames; a server never does (RFC 6455 5.1), so
+ * the helper's WebSocket server passes `null`. The mask is required, not optional, so client
+ * code cannot send an unmasked frame by leaving it out.
  * @param {number} opcode
  * @param {Uint8Array} payload
- * @param {Uint8Array} mask 4 random bytes
+ * @param {Uint8Array | null} mask 4 random bytes for a client frame, `null` for a server frame
  * @returns {Uint8Array}
  */
 export function encodeFrame(opcode, payload, mask) {
-    if (mask.length !== 4) throw new Error('a WebSocket mask is exactly 4 bytes');
+    if (mask !== null && mask.length !== 4) throw new Error('a WebSocket mask is exactly 4 bytes');
+    const maskBytes = mask === null ? 0 : 4;
+    const maskBit = mask === null ? 0 : 0x80;
     const n = payload.length;
     const lengthBytes = n < 126 ? 0 : n < 65536 ? 2 : 8;
-    const frame = new Uint8Array(2 + lengthBytes + 4 + n);
-    frame[0] = 0x80 | opcode; // FIN + opcode: the client never fragments
+    const frame = new Uint8Array(2 + lengthBytes + maskBytes + n);
+    frame[0] = 0x80 | opcode; // FIN + opcode: messages are never fragmented on send
     if (lengthBytes === 0) {
-        frame[1] = 0x80 | n;
+        frame[1] = maskBit | n;
     } else if (lengthBytes === 2) {
-        frame[1] = 0x80 | 126;
+        frame[1] = maskBit | 126;
         frame[2] = n >>> 8;
         frame[3] = n & 0xff;
     } else {
-        frame[1] = 0x80 | 127;
+        frame[1] = maskBit | 127;
         new DataView(frame.buffer).setBigUint64(2, BigInt(n));
     }
-    const maskAt = 2 + lengthBytes;
-    frame.set(mask, maskAt);
-    const body = maskAt + 4;
-    for (let i = 0; i < n; i++) frame[body + i] = payload[i] ^ mask[i & 3];
+    const body = 2 + lengthBytes + maskBytes;
+    if (mask === null) {
+        frame.set(payload, body);
+    } else {
+        frame.set(mask, 2 + lengthBytes);
+        for (let i = 0; i < n; i++) frame[body + i] = payload[i] ^ mask[i & 3];
+    }
     return frame;
 }
 
 /**
  * Encode a text message.
  * @param {string} text
- * @param {Uint8Array} mask 4 random bytes
+ * @param {Uint8Array | null} mask 4 random bytes for a client, `null` for a server
  * @returns {Uint8Array}
  */
 export function encodeText(text, mask) {

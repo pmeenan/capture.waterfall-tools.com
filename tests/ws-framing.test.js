@@ -56,6 +56,16 @@ describe('encodeFrame', () => {
     it('rejects a mask that is not four bytes', () => {
         expect(() => encodeFrame(OPCODE.TEXT, new Uint8Array(1), bytes(1, 2, 3))).toThrow();
     });
+
+    it('writes an unmasked server frame when the mask is null', () => {
+        // RFC 6455 5.7: a single-frame unmasked text message containing "Hello".
+        expect(encodeText('Hello', null)).toEqual(bytes(0x81, 0x05, 0x48, 0x65, 0x6c, 0x6c, 0x6f));
+        const medium = encodeFrame(OPCODE.BINARY, new Uint8Array(300), null);
+        expect([...medium.subarray(0, 4)]).toEqual([0x82, 126, 0x01, 0x2c]);
+        expect(medium.length).toBe(4 + 300);
+        const [decoded] = new FrameDecoder().push(encodeText('round trip', null));
+        expect(new TextDecoder().decode(decoded.payload)).toBe('round trip');
+    });
 });
 
 describe('FrameDecoder', () => {

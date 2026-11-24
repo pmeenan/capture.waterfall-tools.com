@@ -1,13 +1,14 @@
 import { createClock } from '@capture/shared/clock';
 import { runPreflight } from './preflight.js';
+import { wireHelper } from './helper-ui.js';
 import { buildSampleResult } from './sample.js';
 import { SITE_VERSION } from './version.js';
 
-/** The three runners of the first release, none of which exists yet (docs/plan.md). */
+/** The three runners of the first release (docs/plan.md). The helper's card shows its live connection state. */
 const RUNNERS = [
-    { title: 'Local helper', text: 'A dedicated Chrome on this computer, started by a small helper you run. The most complete capture.', status: 'Not built yet' },
-    { title: 'Android phone', text: 'Chrome on a phone connected by USB, with no app to install.', status: 'Not built yet' },
-    { title: 'This browser', text: 'A tab in this browser, through an extension.', status: 'Not built yet' },
+    { id: 'helper', title: 'Local helper', text: 'A dedicated Chrome on this computer, started by a small helper you run. The most complete capture.', status: 'Being built' },
+    { id: 'android', title: 'Android phone', text: 'Chrome on a phone connected by USB, with no app to install.', status: 'Not built yet' },
+    { id: 'extension', title: 'This browser', text: 'A tab in this browser, through an extension.', status: 'Not built yet' },
 ];
 
 /**
@@ -33,7 +34,13 @@ function byId(id) {
 }
 
 function renderRunners() {
-    byId('runners').replaceChildren(...RUNNERS.map((r) => el('li', { className: 'featureCard' }, [el('h3', { text: r.title }), el('p', { text: r.text }), el('p', { text: r.status, className: 'status' })])));
+    byId('runners').replaceChildren(...RUNNERS.map((r) => {
+        const status = el('p', { text: r.status, className: 'status' });
+        status.id = `${r.id}-status`;
+        const actions = el('div', { className: 'runner-actions' });
+        actions.id = `${r.id}-actions`;
+        return el('li', { className: 'featureCard' }, [el('h3', { text: r.title }), el('p', { text: r.text }), status, actions]);
+    }));
 }
 
 async function renderPreflight() {
@@ -85,8 +92,10 @@ function wireSample() {
     });
 }
 
+// Read the helper's pairing link first: it is taken out of the address bar before anything else.
 byId('version').textContent = SITE_VERSION;
 renderRunners();
+wireHelper({ status: byId('helper-status'), actions: byId('helper-actions'), createClock });
 wireSample();
 renderPreflight().catch((error) => {
     byId('preflight').replaceChildren(el('li', { text: `Checks failed: ${error instanceof Error ? error.message : String(error)}`, className: 'error' }));

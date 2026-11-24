@@ -2,7 +2,13 @@
   "name": "@capture/helper",
   "version": "0.0.0",
   "private": true,
-  "description": "The local helper started with npx (D-017, D-022). Placeholder until milestone M2; not published before its security review.",
+  "description": "The local helper started with npx (D-017, D-022). Not published before its security review.",
   "license": "Apache-2.0",
-  "type": "module"
+  "type": "module",
+  "bin": {
+    "capture-helper": "./bin/capture-helper.js"
+  },
+  "dependencies": {
+    "@capture/shared": "*"
+  }
 }

@@ -274,9 +274,35 @@ A small Node program published to npm (D-017, D-022):
 
 On the page's side, the pairing fragment is read and then removed from the
 address bar with `history.replaceState` before anything else happens, so it
-is not left in a screenshot or a copied URL. Still to decide in M2: whether
-a secret pairs once or for as long as the helper runs, and where the page
-keeps it for a reconnect once the fragment is gone.
+is not left in a screenshot or a copied URL.
+
+The page's side is `site/src/helper-connection.js`. It takes the fragment,
+connects to `ws://127.0.0.1:<port>`, and while the socket stays connecting
+reads the `loopback-network` permission to tell "Chrome is asking" from
+"nothing is listening". All its waits use the worker clock. It hands the
+shared `CdpClient` a transport that wraps each command in the helper's `cdp`
+envelope. The site's CSP admits `ws://127.0.0.1:*` for it.
+
+**Decided in M2.** The secret pairs for as long as the helper runs, one
+connection at a time, so a reloaded page can reconnect. The page keeps it in
+`sessionStorage` once the fragment is gone, so it dies with the tab.
+Implementation, in `helper/`:
+- `src/server.js`: the loopback server, the checks, and the control
+  protocol (`hello` / `welcome` / `launch` / `launched` / `cdp` / `close` /
+  `closed`). Close codes:
+  - 4003: wrong secret, or anything other than `hello` first;
+  - 4008: no `hello` within 3 s;
+  - 4009: more than 4 KB before pairing.
+- `src/relay.js`: the filter. It also drops events about targets the page
+  does not own.
+- `src/chrome.js`: finding and launching Chrome.
+
+The page names a channel and asks for Chrome features by name, from a
+table in `chrome.js` (`socketThrottling` today); it never supplies a path
+or a switch. Paths are never sent to the page, because they contain the
+user's name. Node's HTTP server leaves upgraded sockets half-open, so the
+helper treats the socket's `end` as the page going away, not only `close`.
+Otherwise a closed tab would keep the slot and its Chrome.
 
 The URL filter allows any `http(s)` address, local and private ones
 included; that is deliberate (D-030). It also allows `about:blank` and
@@ -297,8 +323,18 @@ connection includes a shell — so it sits behind its own opt-in. That gate is
 designed in M3, before the dev bridge carries a phone, so that no unguarded
 mode is ever built and then has to be reworked for the release.
 
-Also not designed yet: how the helper finds a Chrome on each operating
-system.
+**Finding Chrome** (RE-014, RE-022) uses a fixed list of places per
+operating system, one hit per channel, deduplicated by real path:
+- **Windows:** `Google\Chrome*\Application\chrome.exe` under Program
+  Files, Program Files (x86) and LocalAppData. Canary is `Chrome SxS`.
+- **macOS:** the `.app` bundles in `/Applications` and `~/Applications`.
+- **Linux:** the `google-chrome*` and `chromium*` commands, plus
+  `/opt/google/chrome*/chrome`.
+
+Every launch adds `--remote-debugging-pipe`, a new temporary
+`--user-data-dir`, `--no-first-run` and `--no-default-browser-check`, plus
+`--use-mock-keychain` on macOS. The profile is deleted when the browser
+exits, with retries for Windows file locks.
 
 ### 3.8 Video
 

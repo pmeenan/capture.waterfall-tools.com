@@ -81,7 +81,7 @@ affected docs. Until then, these govern.
 | `site/` | The capture page: `index.html`, `src/`, and `public/` (sample trace, logo, `_headers` with the Content-Security-Policy). Styled to match the viewer: [architecture §3.12](docs/architecture.md) |
 | `shared/src/` | Used by more than one deliverable: `clock`, `cdp-allowlist`, `cdp-client`, `ws-framing`, `zip`, `artifact` |
 | `extension/` | The MV3 bridge — placeholder until M4 |
-| `helper/` | The `npx` helper and dev bridge — placeholder until M2 |
+| `helper/` | The `npx` helper (M2): loopback server and pairing, the CDP relay, finding and launching Chrome. Type-checked by `tsconfig.node.json` |
 | `tests/` | vitest unit tests; `helpers/` holds test doubles |
 | `scripts/` | `build.js`, `preview.js`, `check-licenses.js`, `deploy.js` |
 | `waterfall-tools/` | Git submodule: the viewer's repository, for changes that span both (D-029). Its own `AGENTS.md` governs work inside it. Excluded from this repo's lint, type check, tests and licence gate; never imported by the site, extension or helper. |

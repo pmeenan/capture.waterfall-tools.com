@@ -3,10 +3,11 @@
 # (D-018, D-022), so this policy is a security control: loosen it deliberately.
 #   script-src 'self'   no inline or third-party script (D-010)
 #   worker-src blob:    the worker-backed clock is created from a blob (RE-015)
-#   connect-src 'self'  widened when a runner needs it, not before
+#   connect-src         'self', plus the local helper on loopback (D-022). The helper checks
+#                       Origin and the pairing secret itself; this only lets the page reach it.
 #   frame-src           widened when the embedded viewer lands (M2): the production viewer origin only
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; worker-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*; worker-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
 

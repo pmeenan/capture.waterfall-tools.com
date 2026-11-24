@@ -380,8 +380,40 @@ Progress:
 - [x] **The `postMessage` load in the viewer (2026-11-24).** Built in the
   submodule as protocol 1 (`src/viewer/embed-api.js`, waterfall-tools Phase
   20). The tests include a browser test with a cross-origin parent posting a
-  9.5 MB HAR as a transferred buffer. It is uncommitted in the submodule,
-  and goes live when the viewer is next deployed.
+  9.5 MB HAR as a transferred buffer. Committed in the submodule
+  (`a94d604`); it goes live when the viewer is next deployed.
+- [ ] **The helper (started 2026-11-24).** Built so far: the loopback
+  server with the D-022 checks, pairing, the control protocol, the filtered
+  relay with ownership, finding Chrome, and the pipe launch with a
+  throwaway profile. `tsconfig.node.json` type-checks it without the DOM.
+  Tests:
+  - every RE-014 guard, plus the two new ones: a connection that never
+    pairs is dropped, and one connection at a time;
+  - the relay refuses targets it did not create, and RE-014's abuse calls;
+  - a real headless Chrome driven through the relay, which leaves no
+    profile behind on close or when the page goes away.
+
+  **The page's side** (`site/src/helper-connection.js`, `helper-ui.js`):
+  - the pairing fragment is removed from the address bar at once and kept in
+    `sessionStorage`;
+  - the connection waits through Chrome's loopback prompt instead of timing
+    out, and reports a denial, a stale link and a stopped helper in words;
+  - a CDP transport for the shared client;
+  - a "Test the connection" button;
+  - the CSP admits `ws://127.0.0.1:*` and nothing else new.
+
+  Run end to end on 2026-11-24: the built site under its production headers,
+  the real helper, Chrome stable 157 launched, answered and closed; a reload
+  re-paired from `sessionStorage`; no console errors, no profile left. That
+  page was on `localhost`, so Chrome's loopback prompt did not appear; the
+  prompt path is covered by unit tests only until it runs from the public
+  site.
+
+  Still to do for the helper:
+  - reading the NetLog back after the browser closes;
+  - the dev-bridge mode;
+  - a pinned Chrome in Linux CI;
+  - checking that the real-Chrome tests run in CI.
 
 Waiting on: the owner's commits in the waterfall-tools repository for the
 viewer changes. (The submodule was added on 2026-11-24, pinned at
