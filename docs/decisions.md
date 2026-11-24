@@ -41,6 +41,71 @@ licence gate, in M1. D-027..D-029 answer an outside review of the project on
 
 ---
 
+## D-036: Capture stays local; sharing moves to the viewer, on a separate share origin  (2026-11-24, status: accepted; amends D-005, D-006, D-008, D-010)
+
+**Decision.**
+1. **The capture site is 100% local.** A result goes to the embedded viewer by `postMessage`
+   (D-020), is kept in the capture origin's own storage, and can be saved to disk. The capture
+   site uploads nothing, signs in to nothing, and holds no storage credentials.
+2. **Sharing is a viewer feature.** "Publish" / "share" lives in waterfall-tools, so anything the
+   viewer has open can be shared, whatever produced it.
+3. **Sharing runs on its own origin.** The viewer hands the original files to a share page on a
+   separate origin (provisionally `share.waterfall-tools.com`), opened as a top-level popup.
+   That page:
+   - signs in to the user's storage;
+   - holds the tokens and keys;
+   - shows the publish warning;
+   - uploads;
+   - returns the link.
+
+   It never parses capture formats.
+
+This is the owner's direction: "make capture 100% local and always use post message and then add
+a 'publish' or 'share' option to the viewer to upload to storage. That way all inputs can be
+shared and the architecture is cleaner". The owner chose the separate share origin over a
+strict CSP on the viewer.
+
+**Context.**
+- S5 showed Drive publishing works from a page (RE-021), and D-034 already sends published links
+  through the viewer's `/fetch` proxy. Keeping the upload side in the capture site would limit
+  sharing to capture results and put OAuth in the origin the extension and helper trust.
+- Putting it directly in the viewer would put storage tokens in an origin that runs a dozen
+  parsers over untrusted files. That origin sends no CSP and has had a DOM XSS before.
+- The viewer can be framed by any site by design, so a share button inside it could be
+  clickjacked.
+
+**Consequences.**
+- **The capture site's scope shrinks.** It no longer does upload, storage providers or the
+  publish warning. Its M7 becomes waterfall-tools work, done through the submodule (D-029). Local
+  download and local history stay here.
+- **The storage targets move with it.** The four targets (download, Drive `drive.file`,
+  S3-compatible, Dropbox) and "nothing leaves the machine without an explicit user action"
+  (D-008) now bind the share origin.
+- **Sign-in moves too.** Google sign-in no longer appears on the capture site (D-010). It appears
+  on the share origin, the only place any sign-in happens.
+- **The share origin is the security boundary.**
+  - It is a separate, minimal static page with a strict CSP.
+  - It accepts files only from the viewer's exact origin, through its opener.
+  - It needs a click in its own top-level window before uploading. That is what defeats
+    clickjacking, since a framing page cannot reach that window.
+- **The viewer must keep the original bytes** of whatever it shows, for every format. They are
+  cached in the viewer's file storage (OPFS), not in memory, so large captures cost disk, not
+  RAM. The owner's direction: "the viewer can store a copy of the loaded result in file storage
+  as a cache instead of in ram". The cache is replaced by the next load and cleared with the
+  viewer's state. Today raw buffers stay in RAM, and only for some formats.
+- **The publish warning and optional redaction become viewer and share-page features,** so they
+  cover every format, not just capture results.
+- **The OAuth client's JavaScript origins become the share origin.** It no longer needs the
+  capture site. The privacy policy and terms on waterfall-tools.com already describe uploads as
+  direct from the browser to the provider, which stays true.
+- **D-006's "published URL" result mode now comes from sharing in the viewer.** It is not a
+  separate path out of the capture site.
+- **A spike is needed before building:** opening the share popup from the viewer, both
+  full-page and embedded in the capture page, and handing it a large file.
+
+**Reopen if.** The popup hand-off proves unreliable or blocked by browsers, or the extra origin's
+upkeep outweighs the isolation.
+
 ## D-035: The owner may direct an agent to commit  (2026-11-24, status: accepted; amends D-003)
 
 **Decision.** Agents still do not commit on their own initiative, and every hand-off is still an
@@ -1032,7 +1097,7 @@ validator code lives is not fixed by this entry.
 **Reopen if.** Third-party producers appear and the spec needs governance
 independent of either project.
 
-## D-010: No accounts except for storage that needs one; no telemetry  (2026-11-23, status: accepted)
+## D-010: No accounts except for storage that needs one; no telemetry  (2026-11-23, status: accepted; amended by D-036: sign-in moves to the share origin)
 
 **Decision.** Running a test, viewing a result, downloading it, and using
 non-Google storage require no account. Google sign-in appears only when the
@@ -1089,7 +1154,7 @@ precisely in the spec.
 labelling as a cold start, or that incognito cannot be driven from the
 extension.
 
-## D-008: Results go to user-provided storage; four first targets  (2026-11-23, status: accepted)
+## D-008: Results go to user-provided storage; four first targets  (2026-11-23, status: accepted; amended by D-036: the targets are served by the viewer's share origin)
 
 **Decision.** The project operates no result storage. A finished test artifact
 stays in the user's browser until the user sends it somewhere they control.
@@ -1146,7 +1211,7 @@ needs a version field from v0.
 get viewing working materially sooner without giving up what the manifest
 buys; or waterfall-tools cannot reasonably ingest the new format.
 
-## D-006: Rendering belongs to production waterfall-tools; two result modes  (2026-11-23, status: accepted; amended by D-029)
+## D-006: Rendering belongs to production waterfall-tools; two result modes  (2026-11-23, status: accepted; amended by D-029, D-036)
 
 **Decision.** This project does not render waterfalls. Results are displayed
 by the production waterfall-tools viewer, reached in two ways, both of which
@@ -1176,7 +1241,7 @@ platform caveat (Q4), not part of this decision.
 the embedded viewer cannot be made frameable without weakening
 waterfall-tools.com's own security posture.
 
-## D-005: Repo scope is the capture side; first runners are Chrome-only  (2026-11-23, status: accepted; amended by D-017)
+## D-005: Repo scope is the capture side; first runners are Chrome-only  (2026-11-23, status: accepted; amended by D-017, D-036)
 
 **Decision.** This repository covers the capture side of the system: the
 in-browser testing UI, capture from an attached Android device over WebUSB,

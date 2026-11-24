@@ -119,8 +119,8 @@ needs evidence.
       `ArrayBuffer`; the viewer answers `loaded` or `error` to the sender's
       origin. Open to any embedder; no storing on the viewer side. The
       production viewer sends no framing headers, so none need changing.
-      To settle with the waterfall-tools work: message names and
-      versioning, and a check on the real domains.
+      Message names and versioning were settled in M2 as protocol 1 of
+      waterfall-tools' `embed-api.js`. Still to check: the real domains.
 - [x] **Spike S5 — Publish without a backend (Q6).** Per storage target:
       static-page auth, upload, making the file public, and a cross-origin
       fetch of it from another browser profile. Output: a table of target ×
@@ -376,6 +376,13 @@ tests reach the artifact parser that lives in the submodule, given that
 `package.json` depends on the published waterfall-tools and CI does not
 check the submodule out.
 
+Progress:
+- [x] **The `postMessage` load in the viewer (2026-11-24).** Built in the
+  submodule as protocol 1 (`src/viewer/embed-api.js`, waterfall-tools Phase
+  20). The tests include a browser test with a cross-origin parent posting a
+  9.5 MB HAR as a transferred buffer. It is uncommitted in the submodule,
+  and goes live when the viewer is next deployed.
+
 Waiting on: the owner's commits in the waterfall-tools repository for the
 viewer changes. (The submodule was added on 2026-11-24, pinned at
 waterfall-tools `36c2d86`, v0.4-7.)
@@ -493,35 +500,41 @@ cannot finish before those ship.**
 production viewer without leaving the machine; the artifact validates
 against the published spec.
 
-### M7 — Publish  `pending`
+### M7 — Share, in waterfall-tools  `pending`
 
-Scope: the storage providers — download, Google Drive, S3-compatible bucket,
-Dropbox — Drive first, since spike S5 proved it (RE-021); "publish" returning a shareable
-viewer link where the target allows; the publish warning and optional
-redaction; resumable uploads; provider settings kept in the browser.
+**Moved to waterfall-tools by D-036.** The capture site stays local: it posts
+results to the viewer and saves them to disk. Sharing is a viewer feature on a
+separate share origin, built through the submodule (D-029). It covers anything
+the viewer has open.
+
+Scope (all in waterfall-tools):
+- **Spike first:** the viewer opens the share popup, both full-page and
+  embedded in the capture page, and hands it a large file.
+- **The share origin:** a minimal static page with a strict CSP that never
+  parses files. It takes files only from the viewer's origin through its
+  opener, and uploads only after a click in its own window.
+- **The storage providers:** Google Drive first, since S5 proved it
+  (RE-021), then S3-compatible and Dropbox, each tested as it is built.
+- **Sharing behaviour:** the publish warning and optional redaction;
+  resumable uploads; provider settings kept in the share origin's storage;
+  a shareable viewer link where the target allows.
+- **The viewer side:** a Share action, and the original bytes of every
+  loaded file kept as a cache in the viewer's file storage (OPFS), not in
+  RAM.
+- **The `/fetch` proxy (D-034):** its format sniff learns the result zip, it
+  caches published results, and a local `/fetch` for the dev viewer runs the
+  same Worker code.
 
 Waiting on: accounts and credentials for the S3-compatible and Dropbox
-targets, each tested as it is built (S5 ran on Drive only); from
-waterfall-tools, loading a published result by reference.
+targets, and the owner's OAuth client updated to the share origin's
+JavaScript origin. Google's production requirements for the app are met.
 
-Before Drive ships, the owner's Google OAuth app must be in production. That
-needs `waterfall-tools.com` as an authorized domain (done), the privacy
-policy and terms live on it (drafted in the waterfall-tools submodule), and
-`capture.waterfall-tools.com` added to the client's authorized JavaScript
-origins.
-
-Published links open through the waterfall-tools `/fetch` proxy, not from the
-page (D-034). That gives M7 three waterfall-tools tasks, built at the start
-of M7:
-- The Worker's format sniff learns the result zip.
-- Caching of published results in the Worker.
-- A local `/fetch` for the dev viewer that runs the same Worker code, so
-  localhost testing takes the production path.
-
-**Exit criteria:** for each storage target the owner has uploaded a result;
-for at least one target a published link opens the result in waterfall-tools
-in a different browser profile (the vision's criterion is one target, not
-four); nothing is uploaded without the warning having been shown.
+**Exit criteria:** for each storage target the owner has shared a result from
+the viewer, including a capture result posted by the capture page; for at
+least one target a published link opens the result in waterfall-tools in a
+different browser profile (the vision's criterion is one target, not four);
+nothing is uploaded without the warning having been shown; no storage
+credential is ever readable from the viewer's or the capture site's origin.
 
 ### M8 — First release  `pending`
 

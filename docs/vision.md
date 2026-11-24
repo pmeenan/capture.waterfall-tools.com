@@ -18,8 +18,8 @@ things around one self-contained result file:
   existing client-side viewer by the same author.
 
 `capture.waterfall-tools.com` is the page where a test is configured, run, and
-turned into a result; it then hands that result to waterfall-tools to look at
-and, if the user wants, publishes it to get a link.
+turned into a result; it then hands that result to waterfall-tools to look at,
+and the viewer can share it to the user's own storage to get a link (D-036).
 
 What makes this plausible now is a set of recent Chrome capabilities the
 project owner (who works on Chrome's network stack and loading) pointed to:
@@ -57,8 +57,8 @@ browsers — is deliberately not part of this repository yet (D-005).
   result leaving the user's machine.
 - A user can publish a result to at least one storage target they control and
   get a URL that opens that result in waterfall-tools in someone else's
-  browser. (Which targets can do this is open — Q6; the criterion is one, not
-  all four.)
+  browser. (Google Drive can, with no proxy of ours (RE-021); the criterion is
+  one target, not all four. Since D-036 this is done from the viewer.)
 - Every result states how it was captured — runner, throttling engine, profile
   isolation, browser build — accurately enough that two results captured
   differently are not mistaken for comparable.

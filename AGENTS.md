@@ -32,10 +32,10 @@ affected docs. Until then, these govern.
   transpilation, no polyfills; JSDoc types; ESLint; vitest. The UI targets
   current stable Chromium desktop browsers. (D-004)
 - **Scope is the capture side, Chrome only.** UI, Android-over-WebUSB runner,
-  extension runner, local `npx` helper runner (D-017), upload, viewer
-  integration. Do not build agent
-  rendezvous, queues, hosted runners, the share proxy, or non-Chrome support
-  here. (D-005)
+  extension runner, local `npx` helper runner (D-017), local download and
+  history, viewer integration. Do not build agent rendezvous, queues, hosted
+  runners, the share proxy, uploads or non-Chrome support here. (D-005,
+  D-036)
 - **No renderer here.** Results are shown by the production waterfall-tools
   viewer: embedded iframe fed by `postMessage`, or a published URL; the
   default is user-selectable. waterfall-tools is a submodule here for working
@@ -43,9 +43,12 @@ affected docs. Until then, these govern.
 - **One artifact contract.** Every runner emits the same new manifest-based
   result zip, versioned from v0. (D-007) Its spec lives in the waterfall-tools
   repo; capture code follows the spec, never the reverse. (D-011)
-- **User-provided storage only.** Local download, Google Drive (`drive.file`
-  scope only), S3-compatible bucket, Dropbox. Nothing leaves the user's
-  machine without an explicit user action. (D-008)
+- **Capture stays local; sharing is the viewer's.** The capture site posts
+  results to the viewer and saves them to disk, and uploads nothing.
+  Sharing to user-provided storage (Drive `drive.file` only, S3-compatible,
+  Dropbox) lives in waterfall-tools on a separate share origin that never
+  parses files. Nothing leaves the user's machine without an explicit user
+  action. (D-008, D-036)
 - **Never wipe by surprise.** Isolation level is the user's choice. Auto
   full-wipes only test-channel browsers. In a browser the user lives in,
   nothing is deleted unasked: cookie clearing is profile-wide and needs
@@ -67,8 +70,9 @@ affected docs. Until then, these govern.
   Never loosen one of these without a new decision. The helper's route to a
   phone through adb cannot be filtered, so it stays behind a separate
   opt-in. (D-015, D-017, D-022, D-023, D-030, D-033)
-- **No accounts, no telemetry.** Sign-in only for Google Drive upload. No
-  analytics, error reporting, or third-party scripts. (D-010)
+- **No accounts, no telemetry.** No sign-in on the capture site; the only
+  sign-in is for storage, on the viewer's share origin. No analytics, error
+  reporting, or third-party scripts. (D-010, D-036)
 
 ## Repository layout
 
@@ -167,6 +171,6 @@ result into the embedded viewer, is verified against controlled test pages,
 and gains a minimal diagnostics log and a pinned Chrome in CI; spike S5 ran
 for Google Drive before M3 and needs no proxy; the helper's adb gate is designed in M3;
 a desktop video timing spike precedes M5. Next is M2. Open: the full
-artifact format, publishing to S3 and Dropbox, and where cookie-deletion consent is held (D-027). See
+artifact format, the viewer's share origin (D-036: capture stays local), and where cookie-deletion consent is held (D-027). See
 [docs/plan.md](docs/plan.md). Keep this paragraph short and current when
 plan.md milestone status changes (rule 4).

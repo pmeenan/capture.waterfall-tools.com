@@ -110,16 +110,21 @@ on a spike result, not on the owner.
 
 ## Upload and publish
 
+**Moved to waterfall-tools (D-036).** The capture site saves results to disk
+and posts them to the viewer; it uploads nothing. Every row below except local
+download is now built in waterfall-tools, on a separate share origin the viewer
+opens as a top-level popup, and covers any file the viewer has open.
+
 | Feature | Status | Notes |
 | --- | --- | --- |
-| Upload to Google Drive | confirmed | `drive.file` scope only. D-008. The only place Google sign-in appears (D-010). |
-| Local download | confirmed | No account needed. D-008. |
-| Upload to an S3-compatible bucket | confirmed | R2 / S3 / GCS; user-supplied credentials or pre-signed URLs. D-008. |
-| Upload to Dropbox | confirmed | D-008. |
-| "Publish" produces a shareable waterfall-tools URL | confirmed | D-006. Which storage targets can back a link another person's browser can load, and what that needs, is Q6 — this row does not promise all four. |
-| Publish warning and optional redaction | confirmed | *triage.* Traces and NetLogs can contain cookies, auth headers, and response bodies. Warn before anything leaves the machine; a strip-sensitive-fields option alongside. What redaction can honestly guarantee needs defining before it is offered. |
-| Resumable uploads with retry | confirmed | *triage.* Results with video and NetLog can be tens of MB. Applies where the provider supports it. |
-| Provider settings stored locally | confirmed | *triage.* Bucket configuration and tokens are kept only in the browser and sent only to the storage provider. Exactly where secrets are kept still waits on spike S5 (Q6). |
+| Upload to Google Drive | confirmed, in waterfall-tools | `drive.file` scope only. D-008. Sign-in happens on the share origin only (D-010, D-036). Proven from a page by S5 (RE-021). |
+| Local download | confirmed | No account needed. D-008. Stays on the capture site (built in M1). |
+| Upload to an S3-compatible bucket | confirmed, in waterfall-tools | R2 / S3 / GCS; user-supplied credentials or pre-signed URLs. D-008. |
+| Upload to Dropbox | confirmed, in waterfall-tools | D-008. |
+| "Publish" produces a shareable waterfall-tools URL | confirmed, in waterfall-tools | D-006. Which storage targets can back a link another person's browser can load, and what that needs, is Q6 — this row does not promise all four. |
+| Publish warning and optional redaction | confirmed, in waterfall-tools | *triage.* Shown on the share origin, for every format (D-036). Traces and NetLogs can contain cookies, auth headers, and response bodies. Warn before anything leaves the machine; a strip-sensitive-fields option alongside. What redaction can honestly guarantee needs defining before it is offered. |
+| Resumable uploads with retry | confirmed, in waterfall-tools | *triage.* Results with video and NetLog can be tens of MB. Applies where the provider supports it. |
+| Provider settings stored locally | confirmed, in waterfall-tools | *triage.* Bucket configuration and tokens are kept only in the share origin's browser storage and sent only to the storage provider (D-036). Never in the viewer's parsing origin or the capture site. |
 
 ## Viewer integration
 
@@ -140,7 +145,8 @@ work items for the waterfall-tools project and need the owner's scheduling.
 | --- | --- | --- |
 | Artifact format spec document | every producer and the parser | D-011: the spec is authored in the waterfall-tools repo. |
 | Input parser for the new manifest zip | every viewing path | D-007. Must handle multi-run and first/repeat view results. |
-| `postMessage` load API in the viewer, open to any embedder | embedded view | D-006, D-020. Today's API is a same-origin global and throws `SecurityError` across origins (RE-012). No allowlist and no storing on the viewer side; the viewer treats the payload as untrusted and replies only to the sender's origin. |
+| `postMessage` load API in the viewer, open to any embedder | embedded view | D-006, D-020. **Built 2026-11-24** in the submodule as protocol 1 (`src/viewer/embed-api.js`): `waterfall-tools:ready`, then `load` with `{requestId, files:[{name, data}]}`, answered by `loaded` or `error` with a fixed code. Only the parent frame may load, from any origin. Replies go only to the sender's origin and carry no user data. Posted files take the same content-sniffing path as a drop. Live once the viewer is next deployed. |
+| Sharing: a share origin the viewer opens as a popup, with storage sign-in, upload, the publish warning and a returned link | sharing any result (D-036) | Replaces this repo's M7 provider work. A separate minimal origin with a strict CSP; it takes files only from the viewer's origin through its opener, and uploads only after a click in its own window. Needs a spike first: opening the popup from the viewer full-page and embedded, and handing it a large file. The viewer keeps the original bytes of every load as a cache in its file storage (OPFS), not in RAM. |
 | Loading a published result by reference (for example a Drive file id) | published view | Shape depends on Q6. Open to anyone with the link, full-page or embedded by any site (D-020). |
 | Fetch-proxy format sniff updated for the new zip | published view via proxy | The existing waterfall-tools Worker only proxies formats it recognises. It also refuses a body over 100 MiB and any `Range` request, so a large result, or a range read of one, works only against storage the browser can fetch directly. |
 | Filmstrip / video display from a raw recording plus manifest metadata | video capture being worth anything | D-021. The viewer decodes H.264 from the MP4 and applies the manifest's start offset, crop rectangle and frame times. Decoding verified in Chrome only (RE-013). Who computes visual metrics is still open. |

@@ -13,8 +13,9 @@
 
 A static web page at `capture.waterfall-tools.com` that runs a page-load test
 on hardware the user controls, turns what it captured into one result file,
-shows that file in the waterfall-tools viewer, and optionally publishes it to
-storage the user owns. Nothing is hosted by the project beyond static files.
+shows that file in the waterfall-tools viewer, and lets the user save it to
+disk. Sharing it to storage the user owns is the viewer's job, on a separate
+share origin (D-036). Nothing is hosted by the project beyond static files.
 
 ```
                  capture.waterfall-tools.com (static page)
@@ -31,9 +32,14 @@ storage the user owns. Nothing is hosted by the project beyond static files.
      (Chrome over ADB)   via the thin       Chrome the   |       |
                          bridge extension   helper runs  |       |
                                                          v       v
-                                            waterfall-tools   user's storage
-                                            viewer (iframe,   (download, Drive,
-                                            or published URL) bucket, Dropbox)
+                                            waterfall-tools   local disk
+                                            viewer (iframe,   (download)
+                                            postMessage)
+                                                 |  Share (D-036)
+                                                 v
+                                            share origin (popup) -> user's storage
+                                                                    (Drive, bucket,
+                                                                     Dropbox)
 ```
 
 ## 2. Fixed points (from decisions)
@@ -48,12 +54,14 @@ storage the user owns. Nothing is hosted by the project beyond static files.
 - **No renderer here**: the production viewer shows results, embedded and fed
   by `postMessage`, or opened by a published URL. No shared local storage
   between the two origins. (D-006, D-020)
-- **User-provided storage only**: download, Google Drive (`drive.file`),
-  S3-compatible bucket, Dropbox. (D-008)
+- **Capture stays local**: the page saves to disk and posts to the viewer.
+  Sharing to user-provided storage (Google Drive `drive.file`, S3-compatible
+  bucket, Dropbox) happens in waterfall-tools, on a share origin that never
+  parses files. (D-008, D-036)
 - **Isolation is the user's choice with an Auto default**, and the result
   records what was actually applied. (D-009)
-- **No accounts except for Drive; no telemetry or third-party scripts.**
-  (D-010)
+- **No accounts on the capture site; no telemetry or third-party scripts.**
+  Storage sign-in happens only on the share origin. (D-010, D-036)
 - **Throttling is DevTools emulation**: socket-layer where the browser has
   it, request-level otherwise; never refuse a run over it; record which
   applied. (D-013)
@@ -91,8 +99,9 @@ From the top down. Each layer knows only the one below it.
 5. **CDP transport.** `send(method, params, sessionId)` plus an event
    stream, and nothing else.
 
-Alongside the stack: the **artifact builder**, **video analysis**, **storage
-providers**, the **viewer hand-off**, and the **local result store**.
+Alongside the stack: the **artifact builder**, **video analysis**, the
+**viewer hand-off**, and the **local result store**. Storage providers are not
+here; they belong to the viewer's share origin (D-036).
 
 ### 3.2 The CDP transport and what differs between runners
 
@@ -360,7 +369,10 @@ directly.
 
 - **Viewing.** The capture page frames the viewer and posts the result to it
   as a transferred buffer (D-020, RE-012). The viewer's side of that — an
-  open `postMessage` load — is a waterfall-tools change. The openness runs
+  open `postMessage` load — is protocol 1 of waterfall-tools'
+  `src/viewer/embed-api.js`: wait for `waterfall-tools:ready`, post
+  `waterfall-tools:load` with a request id and the files, and wait for
+  `loaded` or `error`. The openness runs
   one way only. The viewer accepts a result from any embedder; the capture
   page, which holds traces with cookies in them, posts only to the viewer's
   exact origin — never `*`, and in production never an origin taken from a
@@ -369,17 +381,23 @@ directly.
   tried locally, the development and preview servers add its loopback
   origin as they serve, so that it never reaches the deployed policy.
 - **Keeping.** Results the user keeps live in the capture origin's own
-  storage and are posted to the viewer again when re-opened (D-020). Storage
-  credentials and settings stay in the browser too. Local
+  storage and are posted to the viewer again when re-opened (D-020). Local
   history is a post-first-release feature (D-012), but the result store's
   shape should not preclude it.
-- **Publishing.** A storage provider uploads the zip and, where the target
-  allows it, returns a reference the viewer can load for anyone with the
-  link (D-006, D-008, D-020). One interface, four implementations. Which
-  targets can produce such a link without a backend, and where credentials
-  are kept, are unanswered until spike S5 (Q6). A warning precedes every
-  publish: results can contain cookies and credentials, and a raw Android
-  recording shows the whole display (D-021).
+- **Sharing is not done here (D-036).** The capture site saves results to
+  disk and posts them to the viewer, and that is all that leaves the page.
+  Sharing is a waterfall-tools feature:
+  - **The hand-off:** the viewer opens a separate share origin as a
+    top-level popup and hands it the original files. That origin signs in
+    to the user's storage, keeps the credentials, shows the publish warning,
+    uploads, and returns a link the viewer can load by reference through its
+    `/fetch` proxy (D-034).
+  - **Why a separate origin:** it never parses capture formats, so storage
+    tokens never share an origin with the viewer's parsers. Its upload click
+    happens in its own window, which a framing page cannot clickjack.
+  - **The warning matters most for capture results:** they can contain
+    cookies and credentials, and a raw Android recording shows the whole
+    display (D-021).
 
 ### 3.12 Look and feel
 
@@ -440,7 +458,7 @@ draft's proposal:
 
 | Path | Contents |
 | --- | --- |
-| `site/` | The capture page: UI, run controller, runners, storage providers, viewer hand-off |
+| `site/` | The capture page: UI, run controller, runners, local save and store, viewer hand-off |
 | `shared/` | Code used by more than one deliverable: the CDP allowlist, message contracts, the pipeline if the helper ever needs it |
 | `extension/` | The MV3 bridge |
 | `helper/` | The `npx` helper and dev bridge |
@@ -496,10 +514,12 @@ architecture does not work without them:
 Unanswered, in rough order of how much design they could move:
 
 1. **The artifact format** (Q5) — everything in §3.10 hangs on it.
-2. **Publishing without a backend** (Q6, spike S5) — which targets yield a
-   shareable link, and where credentials live.
-3. **Android on a stock phone** — the NetLog path and other file-access
-   results were obtained with SELinux permissive (RE-009).
+2. **The share hand-off** (D-036) — opening the share popup from the viewer,
+   full-page and embedded, and handing it a large file. S5 answered the
+   storage side for Drive (RE-021).
+3. **Switches on Android 17** — the stock-phone pass (RE-020) confirmed the
+   NetLog path, but found Beta, Dev and Canary need Chrome's command-line
+   flag, turned on only with consent (D-032).
 4. **Who computes visual metrics** — the capture side already decodes every
    frame (D-021).
 5. **Video decoding in the viewer outside Chrome** (D-021).
