@@ -480,6 +480,14 @@ Progress:
   What remains is a converter problem: waterfall-tools lists some
   subresources twice (RE-026).
 
+  **A capture through the real helper** (`tests/helper-relay-run.test.js`):
+  the test pairs with the helper's loopback server, launches through it, runs
+  a redirected load over the filtered relay, and gets the NetLog back over the
+  WebSocket. The trace and NetLog in the resulting zip both convert, and no
+  working folder is left once the pairing ends. That covers the exit
+  criterion's helper path end to end, with no human. It uses a controlled
+  local page; the public-URL run was done by hand from the UI.
+
   **Pinned Chrome in CI** (2026-11-24, written, not yet run on GitHub):
   - The workflow downloads Chrome for Testing Dev 160.0.8171.0 for Linux,
     and lifts Ubuntu's AppArmor user-namespace block so an unpacked Chrome
