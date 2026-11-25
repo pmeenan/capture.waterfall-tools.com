@@ -501,9 +501,6 @@ Progress:
   Still to do for M2:
   - the pinned-Chrome CI job's first run on GitHub;
   - the viewer's parser for the result zip, then posting the zip itself;
-  - committing RE-026's fix in the waterfall-tools submodule (built and
-    tested 2026-11-24, waiting for the owner's review: it changes five golden
-    fixtures);
   - the dev-bridge mode: blocked on the owner. It exists to carry a phone
     through the adb server, and D-023 and M3 require its opt-in gate to be
     agreed with the owner before any such mode is built;

@@ -37,7 +37,7 @@ a stock, enforcing device.
 
 ---
 
-## RE-026: waterfall-tools lists a subresource twice when converting a browser-level trace  (2026-11-24, status: fixed in the submodule, not yet committed there)
+## RE-026: waterfall-tools lists a subresource twice when converting a browser-level trace  (2026-11-24, status: fixed in waterfall-tools)
 
 **Environment.** A browser-level trace with the `netlog` category, from the capture pipeline
 (`site/src/capture/page-load.js`, `TRACE_CATEGORIES`). Chrome stable 157.0.8103.79, headless and
@@ -64,7 +64,7 @@ carries its URL, before `REQUEST_ALIVE`. waterfall-tools started a new internal 
 document request. That entry then showed the stylesheet's URL with the document's bytes and
 timings. The document, its own URL gone, came back through timeline synthesis.
 
-**Fix, in waterfall-tools (Phase 22 there; uncommitted, waiting for the owner).**
+**Fix, in waterfall-tools (Phase 22 there; committed 2026-11-25).**
 - `CORS_REQUEST` begins a new lifecycle too.
 - The same trace now converts to exactly four entries.
 - Five golden fixtures of real sites change. The removed entries were URLs pasted onto other

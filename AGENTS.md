@@ -171,7 +171,6 @@ capture.waterfall-tools.com. **M2 is in progress**, and most of it is built:
 Still open in M2, all waiting on the owner:
 - the minimal artifact format and the viewer's parser for it (Q5, D-011);
 - the first CI run of the pinned-Chrome job (needs a push);
-- committing RE-026's fix in the submodule;
 - the dev bridge, after the adb gate (D-023).
 
 Also open: the full artifact format, the viewer's share origin (D-036:
