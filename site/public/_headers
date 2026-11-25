@@ -5,9 +5,10 @@
 #   worker-src blob:    the worker-backed clock is created from a blob (RE-015)
 #   connect-src         'self', plus the local helper on loopback (D-022). The helper checks
 #                       Origin and the pairing secret itself; this only lets the page reach it.
-#   frame-src           widened when the embedded viewer lands (M2): the production viewer origin only
+#   frame-src           the production viewer only (D-020, architecture §3.11). A local viewer is
+#                       added by scripts/preview.js --viewer, never here.
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*; worker-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' ws://127.0.0.1:*; worker-src blob:; frame-src https://waterfall-tools.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
 

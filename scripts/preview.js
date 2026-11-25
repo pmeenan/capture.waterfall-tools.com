@@ -1,13 +1,23 @@
 // Serves dist/site on loopback the way production does, including the response headers in
 // site/public/_headers, so the built site can be tried under its real Content-Security-Policy.
-// usage: node scripts/preview.js [port]
+// usage: node scripts/preview.js [port] [--viewer <loopback origin>]
+//   --viewer adds a viewer served on loopback (the submodule's dev viewer) to frame-src, for this
+//   preview only, so the deployed policy never names it (architecture §3.11). Open the page with
+//   ?viewer=<the same origin> to use it.
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const out = fileURLToPath(new URL('../dist/site', import.meta.url));
-const port = Number(process.argv[2] ?? 4173);
+const args = process.argv.slice(2);
+const viewerAt = args.indexOf('--viewer');
+const localViewer = viewerAt >= 0 ? new URL(args.splice(viewerAt, 2)[1] ?? '').origin : null;
+if (localViewer && !['localhost', '127.0.0.1', '[::1]'].includes(new URL(localViewer).hostname)) {
+    console.error('--viewer must be a loopback origin');
+    process.exit(2);
+}
+const port = Number(args[0] ?? 4173);
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.gz': 'application/gzip', '.zip': 'application/zip', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
 /**
@@ -55,6 +65,9 @@ http.createServer((req, res) => {
     /** @type {Record<string, string>} */
     const headers = { 'content-type': types[/** @type {keyof typeof types} */ (path.extname(file))] ?? 'application/octet-stream' };
     for (const rule of rules) if (matches(rule.pattern, pathname)) for (const [name, value] of rule.headers) headers[name.toLowerCase()] = value;
+    if (localViewer && headers['content-security-policy']) {
+        headers['content-security-policy'] = headers['content-security-policy'].replace(/frame-src ([^;]*)/, `frame-src $1 ${localViewer}`);
+    }
     res.writeHead(200, headers);
     fs.createReadStream(file).pipe(res);
-}).listen(port, '127.0.0.1', () => console.log(`previewing dist/site at http://localhost:${port} with ${rules.length} header rule(s)`));
+}).listen(port, '127.0.0.1', () => console.log(`previewing dist/site at http://localhost:${port} with ${rules.length} header rule(s)${localViewer ? `, viewer ${localViewer} allowed in frames` : ''}`));

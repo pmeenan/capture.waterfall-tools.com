@@ -29,9 +29,33 @@
                     <ul class="features" id="runners"></ul>
                 </section>
 
+                <section class="panel action-panel" id="run-panel" aria-labelledby="run-heading" hidden>
+                    <h2 id="run-heading">Run a test</h2>
+                    <p>Loads the page in a fresh Chrome started by the helper, and records a trace and a NetLog. Nothing is uploaded.</p>
+                    <form id="run-form" class="run-form">
+                        <label for="run-url">Page to test</label>
+                        <input id="run-url" name="url" type="text" inputmode="url" autocomplete="url" placeholder="https://example.com/" required>
+                        <label for="run-browser">Browser</label>
+                        <select id="run-browser" name="browser"></select>
+                        <div class="run-buttons">
+                            <button type="submit" id="run-start" class="primary-btn">Run test</button>
+                            <button type="button" id="run-cancel" hidden>Cancel</button>
+                        </div>
+                    </form>
+                    <ol class="run-steps" id="run-steps" aria-live="polite"></ol>
+                    <div id="run-output" aria-live="polite"></div>
+                    <div id="viewer" class="viewer-host"></div>
+                </section>
+
                 <section class="panel" aria-labelledby="preflight-heading">
                     <h2 id="preflight-heading">What this browser supports</h2>
                     <ul class="checks" id="preflight" aria-live="polite"><li>Checking…</li></ul>
+                </section>
+
+                <section class="panel action-panel" aria-labelledby="diagnostics-heading">
+                    <h2 id="diagnostics-heading">Diagnostics</h2>
+                    <p>This page keeps a log of its checks and runs, in this browser only. If something goes wrong, save it and attach it to a report. It holds the addresses you tested, and no pairing secret.</p>
+                    <p><button type="button" id="save-diagnostics">Save diagnostics log</button></p>
                 </section>
 
                 <section class="panel action-panel" aria-labelledby="sample-heading">

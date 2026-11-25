@@ -20,11 +20,14 @@ const FAILURE_WORDS = {
  * @param {HTMLElement} deps.status where the connection state is written
  * @param {HTMLElement} deps.actions where buttons go
  * @param {() => import('@capture/shared/clock').Clock} deps.createClock
+ * @param {import('./diagnostics.js').DiagnosticsLog} deps.log
+ * @param {(connection: HelperConnection, clock: import('@capture/shared/clock').Clock) => void} [deps.onPaired]
  */
-export function wireHelper({ status, actions, createClock }) {
+export function wireHelper({ status, actions, createClock, log, onPaired = () => {} }) {
     const say = (/** @type {string} */ text, /** @type {string} */ state) => {
         status.textContent = text;
         status.dataset.state = state;
+        log.info(`helper: ${text}`);
     };
     const pairing = takePairing();
     if (!pairing) {
@@ -40,6 +43,7 @@ export function wireHelper({ status, actions, createClock }) {
     }).then((connection) => {
         const channels = connection.browsers.map((b) => b.channel);
         say(`Connected to helper ${connection.version}. Chrome found: ${channels.join(', ') || 'none'}.`, 'paired');
+        onPaired(connection, clock);
         connection.onState((state, code) => {
             if (state === 'closed' || state === 'failed') {
                 if (code === FAILURE.rejected) forgetPairing();

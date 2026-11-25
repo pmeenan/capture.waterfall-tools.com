@@ -426,6 +426,12 @@ directly.
   viewer and nothing else; when the viewer built from the submodule is
   tried locally, the development and preview servers add its loopback
   origin as they serve, so that it never reaches the deployed policy.
+  Built in M2 as `site/src/viewer-embed.js`:
+  - The page uses `?viewer=<loopback origin>` only when it is itself on a
+    loopback host.
+  - `scripts/preview.js --viewer <origin>` adds that origin to `frame-src`
+    for the preview alone.
+  - Until the viewer parses the result zip, the page posts the gzipped trace.
 - **Keeping.** Results the user keeps live in the capture origin's own
   storage and are posted to the viewer again when re-opened (D-020). Local
   history is a post-first-release feature (D-012), but the result store's

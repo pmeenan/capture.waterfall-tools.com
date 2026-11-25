@@ -1,6 +1,8 @@
 import { createClock } from '@capture/shared/clock';
 import { runPreflight } from './preflight.js';
 import { wireHelper } from './helper-ui.js';
+import { wireRunPanel } from './run-ui.js';
+import { DiagnosticsLog } from './diagnostics.js';
 import { buildSampleResult } from './sample.js';
 import { SITE_VERSION } from './version.js';
 
@@ -43,9 +45,13 @@ function renderRunners() {
     }));
 }
 
+/** The diagnostics log of this page: preflight and every run, in memory until the user saves it. */
+const log = new DiagnosticsLog();
+
 async function renderPreflight() {
     const words = { yes: 'Yes', no: 'No', info: 'Note' };
     const checks = await runPreflight({ createClock });
+    for (const check of checks) log.info(`preflight ${check.id}: ${check.state} - ${check.detail}`);
     byId('preflight').replaceChildren(
         ...checks.map((check) => {
             const state = el('span', { text: words[check.state], className: 'state' });
@@ -93,9 +99,31 @@ function wireSample() {
 }
 
 // Read the helper's pairing link first: it is taken out of the address bar before anything else.
+/** The "Save diagnostics log" button: the log leaves the machine only if the user saves it. */
+function wireDiagnostics() {
+    /** @type {string | null} */
+    let url = null;
+    byId('save-diagnostics').addEventListener('click', () => {
+        if (url) URL.revokeObjectURL(url);
+        url = URL.createObjectURL(new Blob([log.toText({ version: SITE_VERSION })], { type: 'text/plain' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `capture-diagnostics-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}.txt`;
+        link.click();
+    });
+}
+
 byId('version').textContent = SITE_VERSION;
 renderRunners();
-wireHelper({ status: byId('helper-status'), actions: byId('helper-actions'), createClock });
+log.info(`page loaded: Capture ${SITE_VERSION}`);
+wireHelper({
+    status: byId('helper-status'),
+    actions: byId('helper-actions'),
+    createClock,
+    log,
+    onPaired: (connection, clock) => wireRunPanel({ connection, clock, log, byId }),
+});
+wireDiagnostics();
 wireSample();
 renderPreflight().catch((error) => {
     byId('preflight').replaceChildren(el('li', { text: `Checks failed: ${error instanceof Error ? error.message : String(error)}`, className: 'error' }));

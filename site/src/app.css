@@ -390,3 +390,56 @@ a:focus-visible {
         flex-direction: column;
     }
 }
+
+/* Run panel (capture-only: the viewer has no equivalent form). */
+.run-form {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 0.5rem 0.75rem;
+    align-items: center;
+    margin: 0.75rem 0;
+}
+
+.run-form input,
+.run-form select {
+    font: inherit;
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    min-width: 0;
+}
+
+.run-buttons {
+    grid-column: 2;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.run-steps {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+    color: #555555;
+    font-size: 0.9rem;
+}
+
+.runner-actions .detail[data-state='yes'] {
+    color: #1a7f37;
+}
+
+.runner-actions .detail[data-state='no'] {
+    color: #cf222e;
+}
+
+.viewer-host:empty {
+    display: none;
+}
+
+.viewer-frame {
+    display: block;
+    width: 100%;
+    height: 80vh;
+    margin-top: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+}
+

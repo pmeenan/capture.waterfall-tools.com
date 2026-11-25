@@ -443,10 +443,38 @@ Progress:
   waterfall-tools. Found on the way: Chrome never finishes a `fetch()` whose
   body is not read (RE-024).
 
+  **The run UI, the embedded viewer and the diagnostics log**
+  (2026-11-24):
+  - `site/src/run-ui.js`: a URL and a browser, Run and Cancel, each step as
+    it starts, the outcome in words, and the result zip to download.
+  - `site/src/viewer-embed.js`: frames the viewer and posts the result by
+    protocol 1, only to the viewer's exact origin. In production that is
+    `https://waterfall-tools.com`. A `?viewer=` override is honoured only
+    when the page itself runs on loopback. The CSP's `frame-src` names the
+    production viewer; `scripts/preview.js --viewer <origin>` adds a local
+    one for that preview only.
+  - `site/src/diagnostics.js`: preflight and every run step and error, kept
+    in memory and saved only by the user's click. No pairing secret.
+
+  Run end to end the same day: the built site under its production
+  headers, the real helper, and the viewer built from the submodule on
+  loopback. A run of `https://example.com/` started from the UI
+  completed. The result zip was offered, and the waterfall rendered in the
+  embedded viewer without leaving the machine. The console had no errors,
+  and no temporary folder was left.
+
+  Two caveats:
+  - Until the viewer parses the result zip, the page posts only the
+    gzipped trace.
+  - The browser-level trace includes Chrome's own background requests,
+    which show in the waterfall. That is the scoping problem RE-009
+    recorded for the NetLog.
+
   Still to do for M2:
-  - the capture page's run UI: URL, run, progress, cancel, download;
-  - the result in the embedded viewer;
-  - the minimal diagnostics log;
+  - the viewer's parser for the result zip, then posting the zip itself;
+  - scoping the capture to the tested page;
+  - the diagnostics log saving its run's failing step (only the UI paths
+    are exercised so far);
   - the dev-bridge mode;
   - a pinned Chrome in Linux CI;
   - checking that the real-Chrome tests run in CI.
