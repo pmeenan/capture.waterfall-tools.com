@@ -37,7 +37,7 @@ a stock, enforcing device.
 
 ---
 
-## RE-026: waterfall-tools lists a subresource twice when converting a browser-level trace  (2026-11-24, status: open)
+## RE-026: waterfall-tools lists a subresource twice when converting a browser-level trace  (2026-11-24, status: fixed in the submodule, not yet committed there)
 
 **Environment.** A browser-level trace with the `netlog` category, from the capture pipeline
 (`site/src/capture/page-load.js`, `TRACE_CATEGORIES`). Chrome stable 157.0.8103.79, headless and
@@ -54,9 +54,25 @@ The trace itself records that stylesheet once: a single netlog `URL_REQUEST` sou
 take netlog as the request source and synthesize timeline requests only for URLs netlog does not
 cover.
 
-**Impact.** The embedded viewer shows a duplicate row for some subresources of every capture. The
-fix belongs to waterfall-tools' trace parser, probably its "URL already covered by a netlog
-request" gate. Not investigated further there yet.
+**Impact.** The embedded viewer shows a duplicate row for some subresources of every capture.
+
+**Cause, found the same night.** It was not the timeline gate. Chrome reuses a netlog source's
+`id2.local` for a later request once the earlier one finishes. In this trace the document and the
+stylesheet share `0x9d`. The stylesheet's lifecycle opens with a `CORS_REQUEST` begin that already
+carries its URL, before `REQUEST_ALIVE`. waterfall-tools started a new internal request only at
+`REQUEST_ALIVE` or `URL_REQUEST_START_JOB`, so the stylesheet's URL was written onto the finished
+document request. That entry then showed the stylesheet's URL with the document's bytes and
+timings. The document, its own URL gone, came back through timeline synthesis.
+
+**Fix, in waterfall-tools (Phase 22 there; uncommitted, waiting for the owner).**
+- `CORS_REQUEST` begins a new lifecycle too.
+- The same trace now converts to exactly four entries.
+- Five golden fixtures of real sites change. The removed entries were URLs pasted onto other
+  requests' data, mostly disk-cache hits that never reached the network.
+- Checked against an independent count of netlog lifetimes that reached the network:
+  - google.com: every netlog entry's URL now agrees, against 25 disagreements before;
+  - amazon.com: 3 disagree, against 58 before.
+- A regression test with a scrubbed copy of this capture fails without the fix.
 
 ## RE-025: Chrome's start-up traffic lands in the trace unless background networking is off  (2026-11-24, status: worked-around)
 
