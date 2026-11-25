@@ -22,6 +22,21 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      # A pinned Chrome for the real-browser tests (helper launch, pipeline, D-028 endings), so a
+      # Linux difference shows now and not in M4 or M5 (docs/plan.md, M2). Dev 160 has the
+      # socket-layer throttling wiring (RE-001); the runner image's stable Chrome does not.
+      - name: Install pinned Chrome for Testing
+        env:
+          CHROME_VERSION: 160.0.8171.0
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/chrome.zip" "https://storage.googleapis.com/chrome-for-testing-public/$CHROME_VERSION/linux64/chrome-linux64.zip"
+          unzip -q "$RUNNER_TEMP/chrome.zip" -d "$RUNNER_TEMP"
+          echo "CAPTURE_TEST_CHROME=$RUNNER_TEMP/chrome-linux64/chrome" >> "$GITHUB_ENV"
+          echo "CAPTURE_REQUIRE_CHROME=1" >> "$GITHUB_ENV"
+          # Ubuntu 23.10+ blocks unprivileged user namespaces for programs without an AppArmor
+          # profile, and an unpacked Chrome has none, so its sandbox cannot start. This runner only.
+          echo 0 | sudo tee /proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          "$RUNNER_TEMP/chrome-linux64/chrome" --version
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
@@ -30,5 +45,4 @@ jobs:
       # The capture origin is a trust anchor (architecture.md, trust boundaries): a known-vulnerable
       # dependency is a failed build, as it is in waterfall-tools.
       - run: npm audit --audit-level=moderate
-      # The unattended desktop integration jobs (helper pairing, extension over a debugging pipe)
-      # join this workflow in M2 and M4, when there is something for them to run.
+      # The extension over a debugging pipe joins this workflow in M4.

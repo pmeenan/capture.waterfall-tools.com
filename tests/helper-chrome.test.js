@@ -11,6 +11,7 @@ import { candidatePaths, findBrowsers, launchArgs, launchBrowser } from '../help
 import { parseArgs } from '../helper/src/cli.js';
 import { HELPER_PROTOCOL, startHelperServer } from '../helper/src/server.js';
 import { connectRaw } from './helpers/raw-ws-client.js';
+import { testChrome } from './helpers/test-chrome.js';
 
 describe('finding Chrome', () => {
     it('looks in the usual places on each platform', () => {
@@ -67,7 +68,7 @@ describe('command line', () => {
     });
 });
 
-const chrome = findBrowsers()[0];
+const chrome = testChrome;
 /** A private parent folder for this file's launches, so other test files' browsers are not counted. */
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'helper-chrome-test-'));
 const profiles = () => fs.readdirSync(tmpRoot).filter((n) => n.startsWith('capture-helper-'));

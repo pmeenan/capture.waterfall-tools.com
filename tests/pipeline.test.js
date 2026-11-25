@@ -7,12 +7,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { CdpClient } from '@capture/shared/cdp-client';
 import { ALLOWED_METHODS, vetCommand } from '@capture/shared/cdp-allowlist';
 import { Clock } from '@capture/shared/clock';
-import { findBrowsers, launchBrowser } from '../helper/src/chrome.js';
+import { launchBrowser } from '../helper/src/chrome.js';
 import { ENDING, LONG_REQUEST_MS, QUIET_MS, runPageLoad } from '../site/src/capture/page-load.js';
 import { createFakeClockWorker } from './helpers/fake-clock-worker.js';
 import { startTestPages } from './helpers/test-pages.js';
+import { testChrome } from './helpers/test-chrome.js';
 
-const chrome = findBrowsers()[0];
+const chrome = testChrome;
 /** How far past the rule's moment a run may end: the 100 ms poll plus event delivery. */
 const SLACK_MS = 700;
 

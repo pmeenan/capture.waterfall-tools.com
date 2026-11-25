@@ -7,13 +7,14 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error -- waterfall-tools ships no type declarations
 import { WaterfallTools } from 'waterfall-tools';
 import { Clock } from '@capture/shared/clock';
-import { findBrowsers, launchBrowser } from '../helper/src/chrome.js';
+import { launchBrowser } from '../helper/src/chrome.js';
 import { runWithHelper } from '../site/src/capture/helper-run.js';
 import { ENDING } from '../site/src/capture/page-load.js';
 import { createFakeClockWorker } from './helpers/fake-clock-worker.js';
 import { startTestPages } from './helpers/test-pages.js';
+import { testChrome } from './helpers/test-chrome.js';
 
-const chrome = findBrowsers()[0];
+const chrome = testChrome;
 
 /** Chrome on the pipe, behind the BrowserHost interface. @returns {import('../site/src/capture/helper-run.js').BrowserHost} */
 function pipeHost() {

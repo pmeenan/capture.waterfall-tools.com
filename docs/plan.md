@@ -480,7 +480,18 @@ Progress:
   What remains is a converter problem: waterfall-tools lists some
   subresources twice (RE-026).
 
+  **Pinned Chrome in CI** (2026-11-24, written, not yet run on GitHub):
+  - The workflow downloads Chrome for Testing Dev 160.0.8171.0 for Linux,
+    and lifts Ubuntu's AppArmor user-namespace block so an unpacked Chrome
+    can start its sandbox.
+  - It sets `CAPTURE_TEST_CHROME` and `CAPTURE_REQUIRE_CHROME=1`, so the
+    real-browser tests run on that build and cannot be skipped.
+  - The same mechanism ran here: 25 real-browser tests passed on the
+    installed Canary 160 named that way.
+  - Checking it off waits for the owner's next push.
+
   Still to do for M2:
+  - the pinned-Chrome CI job's first run on GitHub;
   - the viewer's parser for the result zip, then posting the zip itself;
   - fixing RE-026 in waterfall-tools' trace parser;
   - the dev-bridge mode;
