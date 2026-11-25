@@ -409,8 +409,44 @@ Progress:
   prompt path is covered by unit tests only until it runs from the public
   site.
 
-  Still to do for the helper:
-  - reading the NetLog back after the browser closes;
+  **The NetLog** (2026-11-24): `launch` takes `netLog: true`. The helper
+  picks the path, inside the run's working folder next to the profile. To
+  close, the helper itself sends `Browser.close` over the pipe, with an id
+  the page can never use, and kills Chrome only after 5 s. The text then
+  reaches the page in 1 MiB `netlog` messages before `closed`, whether
+  Chrome was closed or exited by itself, and the folder is deleted. With
+  real Chrome the result parsed as complete JSON and held the probed URL.
+
+  **The capture pipeline** (2026-11-24, `site/src/capture/`):
+  - `page-load.js` runs one load the same way for every runner. It opens a
+    tab, starts a browser-level trace with netlog, navigates, ends by D-028,
+    and reads the trace back gzipped through `IO.read`. Requests are kept in
+    a map by id; the quiet period is timed from events, on the worker clock.
+  - `helper-run.js` wraps it for the helper: launch with a NetLog, run,
+    close on every path, and package a result zip whose manifest records
+    the ending, the timings and where the document ended up.
+
+  The controlled test pages are in `tests/helpers/test-pages.js`. Against
+  real headless Chrome every D-028 ending lands where the rule says, within
+  0.7 s:
+  - a simple page: exactly the four requests the server served;
+  - a redirect and a 404 document both complete;
+  - a fetch after the load event holds the run;
+  - an event stream does not;
+  - a request hanging past 10 s stops counting;
+  - a page that never goes quiet times out;
+  - a refused connection fails the navigation at once;
+  - a cancel ends the run and still keeps the trace.
+
+  The pipeline called nothing outside the allowlist, and the trace and
+  NetLog from a real result zip both convert with the published
+  waterfall-tools. Found on the way: Chrome never finishes a `fetch()` whose
+  body is not read (RE-024).
+
+  Still to do for M2:
+  - the capture page's run UI: URL, run, progress, cancel, download;
+  - the result in the embedded viewer;
+  - the minimal diagnostics log;
   - the dev-bridge mode;
   - a pinned Chrome in Linux CI;
   - checking that the real-Chrome tests run in CI.

@@ -132,6 +132,9 @@ export class HelperConnection {
     #cdpSink = null;
     /** @type {(() => void) | null} */
     #cdpClosed = null;
+    /** NetLog pieces received since the browser closed, joined when `closed` arrives. */
+    /** @type {string[]} */
+    #netLogParts = [];
 
     /**
      * @param {WebSocket} ws
@@ -253,7 +256,15 @@ export class HelperConnection {
             this.#cdpSink?.(JSON.stringify(message.message));
             return;
         }
-        if (message?.type === 'closed') this.#cdpClosed?.();
+        if (message?.type === 'netlog') {
+            if (typeof message.data === 'string') this.#netLogParts.push(message.data);
+            return;
+        }
+        if (message?.type === 'closed') {
+            message.netLogText = message.netLog === true ? this.#netLogParts.join('') : null;
+            this.#netLogParts = [];
+            this.#cdpClosed?.();
+        }
         const waiting = this.#waiting;
         if (!waiting) return;
         if (waiting.expect.includes(message?.type)) {
@@ -288,15 +299,20 @@ export class HelperConnection {
      * @param {string} options.channel one of `browsers`
      * @param {string[]} [options.features] names the helper knows, such as 'socketThrottling'
      * @param {boolean} [options.headless]
+     * @param {boolean} [options.netLog] have Chrome write a NetLog, returned by `closeBrowser()`
      * @returns {Promise<void>}
      */
-    async launch({ channel, features = [], headless = false }) {
-        await this.#request({ type: 'launch', channel, features, headless }, ['launched']);
+    async launch({ channel, features = [], headless = false, netLog = false }) {
+        await this.#request({ type: 'launch', channel, features, headless, netLog }, ['launched']);
     }
 
-    /** Close the helper's Chrome; resolves once it is gone and its profile deleted. */
+    /**
+     * Close the helper's Chrome; resolves once it is gone and its working folder deleted.
+     * @returns {Promise<{netLog: string | null}>} the NetLog, if the launch asked for one
+     */
     async closeBrowser() {
-        await this.#request({ type: 'close' }, ['closed']);
+        const closed = await this.#request({ type: 'close' }, ['closed']);
+        return { netLog: closed.netLogText ?? null };
     }
 
     /**

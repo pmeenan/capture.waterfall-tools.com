@@ -109,9 +109,10 @@ export const FEATURE_SWITCHES = Object.freeze({
  * @param {boolean} options.headless
  * @param {NodeJS.Platform} options.platform
  * @param {string[]} options.features names from FEATURE_SWITCHES
+ * @param {string | null} [options.netLogPath] where Chrome writes its NetLog; chosen by the helper, never the page
  * @returns {string[]}
  */
-export function launchArgs({ profileDir, headless, platform, features }) {
+export function launchArgs({ profileDir, headless, platform, features, netLogPath = null }) {
     const args = [
         '--remote-debugging-pipe',
         `--user-data-dir=${profileDir}`,
@@ -122,6 +123,9 @@ export function launchArgs({ profileDir, headless, platform, features }) {
     // dialog appears on whoever's screen is active (RE-022).
     if (platform === 'darwin') args.push('--use-mock-keychain');
     if (headless) args.push('--headless=new');
+    // Plain JSON, ended by a clean exit (D-016, RE-009); the default capture mode leaves out cookies
+    // and bodies.
+    if (netLogPath) args.push(`--log-net-log=${netLogPath}`);
     for (const name of features) {
         const sw = FEATURE_SWITCHES[/** @type {keyof typeof FEATURE_SWITCHES} */ (name)];
         if (!sw) throw new Error(`unknown feature: ${name}`);
@@ -135,28 +139,41 @@ export function launchArgs({ profileDir, headless, platform, features }) {
  * @typedef {object} LaunchedBrowser
  * @property {(message: string) => void} send one CDP message, without the NUL separator
  * @property {(listener: (message: string) => void) => void} onMessage
- * @property {Promise<void>} exited resolves once the process has exited and the profile is gone
- * @property {() => Promise<void>} close kill the browser if still running, then wait for cleanup
+ * @property {Promise<{netLog: string | null}>} exited resolves once the process has exited, its NetLog
+ *           (if one was asked for) has been read, and the whole working folder is deleted
+ * @property {() => Promise<{netLog: string | null}>} close ask Chrome to exit cleanly, kill it if it
+ *           does not, then wait for `exited`
  */
 
+/** A command id the page can never use: the relay drops replies to ids the page did not send. */
+const HELPER_COMMAND_ID = 2 ** 31 - 1;
+/** How long a clean Browser.close may take before the process is killed. */
+export const CLOSE_GRACE_MS = 5000;
+
 /**
- * Launch Chrome on the debugging pipe with a new temporary profile.
+ * Launch Chrome on the debugging pipe with a new temporary profile, in a working folder that is
+ * deleted when the browser exits.
  * @param {object} options
  * @param {string} options.executable
  * @param {string[]} [options.features]
  * @param {boolean} [options.headless]
+ * @param {boolean} [options.netLog] write a NetLog, returned by `exited`
+ * @param {string} [options.tmpRoot] where the working folder is made; tests give each their own
  * @returns {LaunchedBrowser}
  */
-export function launchBrowser({ executable, features = [], headless = false }) {
-    const profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'capture-helper-'));
+export function launchBrowser({ executable, features = [], headless = false, netLog = false, tmpRoot = os.tmpdir() }) {
+    const workDir = fs.mkdtempSync(path.join(tmpRoot, 'capture-helper-'));
+    const profileDir = path.join(workDir, 'profile');
+    const netLogPath = netLog ? path.join(workDir, 'netlog.json') : null;
     let child;
     try {
-        child = spawn(executable, launchArgs({ profileDir, headless, platform: process.platform, features }), {
+        fs.mkdirSync(profileDir);
+        child = spawn(executable, launchArgs({ profileDir, headless, platform: process.platform, features, netLogPath }), {
             // fd 3 is what Chrome reads commands from, fd 4 what it writes replies to.
             stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'],
         });
     } catch (error) {
-        fs.rmSync(profileDir, { recursive: true, force: true });
+        fs.rmSync(workDir, { recursive: true, force: true });
         throw error;
     }
     const toBrowser = /** @type {import('node:stream').Writable} */ (child.stdio[3]);
@@ -179,12 +196,26 @@ export function launchBrowser({ executable, features = [], headless = false }) {
         }
     });
 
+    const running = () => child.exitCode === null && child.signalCode === null;
+    /** @type {Promise<{netLog: string | null}>} */
     const exited = new Promise((resolve) => {
-        const done = () => {
+        let started = false;
+        const done = async () => {
+            if (started) return;
+            started = true;
+            let text = null;
+            if (netLogPath) {
+                try {
+                    text = fs.readFileSync(netLogPath, 'utf8');
+                } catch {
+                    text = null; // never written, or the browser died before creating it
+                }
+            }
             // Chrome can hold files in the profile for a moment after exit on Windows.
-            removeWithRetry(profileDir).finally(() => resolve(undefined));
+            await removeWithRetry(workDir);
+            resolve({ netLog: text });
         };
-        if (child.exitCode !== null || child.signalCode !== null) done();
+        if (!running()) done();
         else child.once('exit', done);
         child.once('error', () => { if (child.exitCode === null) done(); });
     });
@@ -198,8 +229,17 @@ export function launchBrowser({ executable, features = [], headless = false }) {
         },
         exited,
         async close() {
-            if (child.exitCode === null && child.signalCode === null) child.kill();
-            await exited;
+            if (running()) {
+                // A clean exit is what completes the NetLog's JSON (RE-014); kill only if it hangs.
+                if (!toBrowser.destroyed) toBrowser.write(`${JSON.stringify({ id: HELPER_COMMAND_ID, method: 'Browser.close' })}\0`);
+                const timer = setTimeout(() => { if (running()) child.kill(); }, CLOSE_GRACE_MS);
+                try {
+                    return await exited;
+                } finally {
+                    clearTimeout(timer);
+                }
+            }
+            return exited;
         },
     };
 }

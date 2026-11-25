@@ -42,6 +42,10 @@ const encoder = new TextEncoder();
  * @property {Uint8Array} [netlog] gzipped NetLog JSON, otherwise as pulled
  * @property {Uint8Array} [video] MP4 as recorded
  * @property {Record<string, unknown>} [videoAnalysis] start offset, crop rectangle, kept-frame times (D-021)
+ * @property {{reason: string, detail?: string}} [ending] how the run ended: completed, timed-out,
+ *           navigation-failed or cancelled (D-028)
+ * @property {{loadEventMs: number | null, endMs: number}} [timings] from the start of navigation
+ * @property {{url: string, finalUrl: string, status: number | null}} [document] where the load ended up
  */
 
 /**
@@ -86,6 +90,9 @@ export function buildArtifact({ test, environment, runs, generator, created = ne
             // repeat views fit later without changing the shape (D-007, D-012).
             view: 'first',
             files,
+            ...(run.ending ? { ending: run.ending } : {}),
+            ...(run.timings ? { timings: run.timings } : {}),
+            ...(run.document ? { document: run.document } : {}),
             ...(run.videoAnalysis ? { videoAnalysis: run.videoAnalysis } : {}),
         };
     });

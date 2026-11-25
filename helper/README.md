@@ -30,4 +30,4 @@ How it stays safe (architecture §3.7):
 | `src/cli.js` | Argument parsing |
 | `src/server.js` | Loopback server, checks, control protocol |
 | `src/relay.js` | The CDP filter |
-| `src/chrome.js` | Finding and launching Chrome |
+| `src/chrome.js` | Finding and launching Chrome; clean close and NetLog read-back |

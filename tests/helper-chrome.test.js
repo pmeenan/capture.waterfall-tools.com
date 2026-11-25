@@ -3,8 +3,10 @@
 // leave no temporary profile behind whether the run is closed or cut off. The real-browser part is
 // skipped where no Chrome is installed.
 import fs from 'node:fs';
+import http from 'node:http';
 import os from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import path from 'node:path';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { candidatePaths, findBrowsers, launchArgs, launchBrowser } from '../helper/src/chrome.js';
 import { parseArgs } from '../helper/src/cli.js';
 import { HELPER_PROTOCOL, startHelperServer } from '../helper/src/server.js';
@@ -65,7 +67,9 @@ describe('command line', () => {
 });
 
 const chrome = findBrowsers()[0];
-const profiles = () => fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('capture-helper-'));
+/** A private parent folder for this file's launches, so other test files' browsers are not counted. */
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'helper-chrome-test-'));
+const profiles = () => fs.readdirSync(tmpRoot).filter((n) => n.startsWith('capture-helper-'));
 
 describe.skipIf(!chrome)('a run with the real Chrome', () => {
     const ORIGIN = 'https://capture.waterfall-tools.com';
@@ -73,16 +77,17 @@ describe.skipIf(!chrome)('a run with the real Chrome', () => {
     /** @type {{ port: number, close: () => Promise<void> } | null} */
     let helper = null;
     afterEach(async () => { await helper?.close(); helper = null; });
+    afterAll(() => fs.rmSync(tmpRoot, { recursive: true, force: true }));
 
-    async function pairAndLaunch() {
+    async function pairAndLaunch({ netLog = false } = {}) {
         helper = await startHelperServer({
             captureOrigin: ORIGIN, secret: SECRET, version: 'test', browsers: [chrome],
-            launch: (o) => launchBrowser({ ...o, headless: true }),
+            launch: (o) => launchBrowser({ ...o, headless: true, tmpRoot }),
         });
         const ws = await connectRaw({ port: helper.port, origin: ORIGIN });
         ws.sendJson({ type: 'hello', protocol: HELPER_PROTOCOL, secret: SECRET });
         expect((await ws.nextJson()).type).toBe('welcome');
-        ws.sendJson({ type: 'launch', channel: chrome.channel });
+        ws.sendJson({ type: 'launch', channel: chrome.channel, netLog });
         expect(await ws.nextJson()).toEqual({ type: 'launched', channel: chrome.channel });
         let nextId = 1;
         /** @param {string} method @param {object} [params] @param {string} [sessionId] @returns {Promise<any>} */
@@ -116,6 +121,39 @@ describe.skipIf(!chrome)('a run with the real Chrome', () => {
         for (;;) if ((await ws.nextJson())?.type === 'closed') break;
         expect(profiles().length).toBe(before);
         ws.destroy();
+    }, 60000);
+
+    it('returns a complete NetLog of the page load after a clean close', async () => {
+        const server = http.createServer((_req, res) => { res.writeHead(200, { 'content-type': 'text/html' }); res.end('<title>netlog</title>'); });
+        await new Promise((r) => server.listen(0, '127.0.0.1', () => r(undefined)));
+        try {
+            const url = `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}/netlog-probe`;
+            const { ws, cdp } = await pairAndLaunch({ netLog: true });
+            const target = await cdp('Target.createTarget', { url: 'about:blank' });
+            const session = await cdp('Target.attachToTarget', { targetId: target.result.targetId, flatten: true });
+            await cdp('Page.navigate', { url }, session.result.sessionId);
+            const deadline = Date.now() + 10000;
+            while (Date.now() < deadline) {
+                const title = await cdp('Runtime.evaluate', { expression: 'document.title', returnByValue: true }, session.result.sessionId);
+                if (title.result?.result?.value === 'netlog') break;
+                await new Promise((r) => setTimeout(r, 100));
+            }
+            ws.sendJson({ type: 'close' });
+            const pieces = [];
+            for (;;) {
+                const m = await ws.nextJson();
+                if (m?.type === 'netlog') pieces.push(m.data);
+                if (m?.type === 'closed') { expect(m.netLog).toBe(true); break; }
+            }
+            const text = pieces.join('');
+            const log = JSON.parse(text); // a clean Browser.close leaves complete JSON (RE-014, D-016)
+            expect(Array.isArray(log.events)).toBe(true);
+            expect(log.events.length).toBeGreaterThan(10);
+            expect(text).toContain('/netlog-probe');
+            ws.destroy();
+        } finally {
+            server.close();
+        }
     }, 60000);
 
     it('leaves no browser profile behind when the page goes away mid-run', async () => {

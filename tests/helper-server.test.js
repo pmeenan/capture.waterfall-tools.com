@@ -3,28 +3,29 @@
 // browser stands in for Chrome; tests/helper-chrome.test.js launches the real one.
 import http from 'node:http';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CLOSE, HELPER_PROTOCOL, PRE_AUTH_MAX_BYTES, startHelperServer } from '../helper/src/server.js';
+import { CLOSE, HELPER_PROTOCOL, NETLOG_CHUNK, PRE_AUTH_MAX_BYTES, startHelperServer } from '../helper/src/server.js';
 import { connectRaw } from './helpers/raw-ws-client.js';
 
 const ORIGIN = 'https://capture.waterfall-tools.com';
 const SECRET = 'a'.repeat(43);
 
 /** A browser that answers a few CDP commands, records what it was sent, and can exit. */
-/** @typedef {{ options: object, sent: any[], closed: boolean }} LaunchRecord */
-function fakeLaunch() {
+/** @typedef {{ options: object, sent: any[], closed: boolean, exit: () => void }} LaunchRecord */
+/** @param {string} [netLogText] what a NetLog-writing launch returns */
+function fakeLaunch(netLogText = '{"constants":{},"events":[]}') {
     /** @type {LaunchRecord[]} */
     const launches = [];
-    /** @param {{executable: string, features: string[], headless: boolean}} options */
+    /** @param {{executable: string, features: string[], headless: boolean, netLog: boolean}} options */
     const launch = (options) => {
         /** @type {Set<(text: string) => void>} */
         const listeners = new Set();
         /** @type {() => void} */
         let resolveExit = () => {};
-        /** @type {Promise<void>} */
-        const exited = new Promise((r) => { resolveExit = () => r(undefined); });
+        /** @type {Promise<{netLog: string | null}>} */
+        const exited = new Promise((r) => { resolveExit = () => r({ netLog: options.netLog ? netLogText : null }); });
         let nextTarget = 1;
         /** @type {LaunchRecord} */
-        const record = { options, sent: [], closed: false };
+        const record = { options, sent: [], closed: false, exit: () => resolveExit() };
         launches.push(record);
         const reply = (/** @type {object} */ m) => queueMicrotask(() => { for (const l of listeners) l(JSON.stringify(m)); });
         return {
@@ -37,7 +38,7 @@ function fakeLaunch() {
             },
             onMessage: (/** @type {(text: string) => void} */ l) => { listeners.add(l); },
             exited,
-            async close() { record.closed = true; resolveExit(); await exited; },
+            async close() { record.closed = true; resolveExit(); return exited; },
         };
     };
     return { launch, launches };
@@ -45,8 +46,9 @@ function fakeLaunch() {
 
 /** @type {{ port: number, close: () => Promise<void> } | null} */
 let helper = null;
-async function start(extra = {}) {
-    const fake = fakeLaunch();
+/** @param {object} [extra] @param {string} [netLogText] */
+async function start(extra = {}, netLogText) {
+    const fake = fakeLaunch(netLogText);
     helper = await startHelperServer({
         captureOrigin: ORIGIN, secret: SECRET, version: '0.0.0-test',
         browsers: [{ channel: 'stable', path: '/fake/chrome' }],
@@ -152,7 +154,7 @@ describe('helper control protocol', () => {
         expect(await ws.nextJson()).toEqual({ type: 'error', code: 'unknown-feature' });
         ws.sendJson({ type: 'launch', channel: 'stable', features: ['socketThrottling'], headless: true });
         expect(await ws.nextJson()).toEqual({ type: 'launched', channel: 'stable' });
-        expect(fake.launches[0].options).toEqual({ executable: '/fake/chrome', features: ['socketThrottling'], headless: true });
+        expect(fake.launches[0].options).toEqual({ executable: '/fake/chrome', features: ['socketThrottling'], headless: true, netLog: false });
         ws.sendJson({ type: 'launch', channel: 'stable' });
         expect(await ws.nextJson()).toEqual({ type: 'error', code: 'already-launched' });
         ws.destroy();
@@ -185,8 +187,41 @@ describe('helper control protocol', () => {
         ws.sendJson({ type: 'launch', channel: 'stable' });
         await ws.nextJson();
         ws.sendJson({ type: 'close' });
-        expect(await ws.nextJson()).toEqual({ type: 'closed' });
+        expect(await ws.nextJson()).toEqual({ type: 'closed', netLog: false });
         expect(fake.launches[0].closed).toBe(true);
+        ws.destroy();
+    });
+
+    it('hands over the NetLog in chunks before closed', async () => {
+        const text = 'x'.repeat(NETLOG_CHUNK * 2 + 10);
+        const { port, fake } = await start({}, text);
+        const { ws } = await pair(port);
+        ws.sendJson({ type: 'launch', channel: 'stable', netLog: true });
+        await ws.nextJson();
+        expect(fake.launches[0].options).toMatchObject({ netLog: true });
+        ws.sendJson({ type: 'close' });
+        const pieces = [];
+        for (;;) {
+            const m = await ws.nextJson();
+            if (m.type === 'closed') { expect(m).toEqual({ type: 'closed', netLog: true }); break; }
+            expect(m.type).toBe('netlog');
+            pieces.push(m);
+        }
+        expect(pieces.map((p) => p.last)).toEqual([false, false, true]);
+        expect(pieces.map((p) => p.data).join('')).toBe(text);
+        ws.destroy();
+    });
+
+    it('sends an empty NetLog as one empty piece, and reports a browser that exits by itself', async () => {
+        const { port, fake } = await start({}, '');
+        const { ws } = await pair(port);
+        ws.sendJson({ type: 'launch', channel: 'stable', netLog: true });
+        await ws.nextJson();
+        fake.launches[0].exit(); // Chrome crashed, or the user closed its window
+        expect(await ws.nextJson()).toEqual({ type: 'netlog', data: '', last: true });
+        expect(await ws.nextJson()).toEqual({ type: 'closed', netLog: true });
+        ws.sendJson({ type: 'cdp', message: { id: 1, method: 'Browser.getVersion' } });
+        expect(await ws.nextJson()).toEqual({ type: 'error', code: 'no-browser' });
         ws.destroy();
     });
 });

@@ -193,6 +193,11 @@ The same sequence for every runner; steps in *italics* are runner-specific.
 15. **Hand the payloads and the environment description** to the run
     controller.
 
+**Where this lives.** Steps 5–11 and 14 are `site/src/capture/page-load.js`, shared by every
+runner. It talks only to a `CdpClient` and uses no DOM or Node API, so the same code runs in the
+page and in Node tests. `site/src/capture/helper-run.js` adds the helper's steps 4 and 12 and
+packages the zip. The manifest records each run's `ending`, `timings` and `document`.
+
 **Counting requests for step 10.** "No request in flight" is easy to get
 wrong in ways that only show as a run sitting out the 120 second limit:
 
@@ -295,7 +300,12 @@ Implementation, in `helper/`:
   - 4009: more than 4 KB before pairing.
 - `src/relay.js`: the filter. It also drops events about targets the page
   does not own.
-- `src/chrome.js`: finding and launching Chrome.
+- `src/chrome.js`: finding and launching Chrome. Each launch gets a working
+  folder holding the profile and, if asked, the NetLog. Closing sends
+  `Browser.close` from the helper itself (the page cannot), kills after 5 s,
+  reads the NetLog and deletes the folder. The helper streams the NetLog to
+  the page as `netlog` messages before `closed`. A page that disconnects
+  gets nothing, and the file is deleted with the folder.
 
 The page names a channel and asks for Chrome features by name, from a
 table in `chrome.js` (`socketThrottling` today); it never supplies a path

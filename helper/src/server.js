@@ -13,12 +13,15 @@
  * After pairing, the control protocol (JSON text frames, protocol 1):
  *   page -> helper  { type: 'hello', protocol: 1, secret }
  *   helper -> page  { type: 'welcome', protocol: 1, version, browsers: [{ channel }] }
- *   page -> helper  { type: 'launch', channel, features?: string[], headless?: boolean }
+ *   page -> helper  { type: 'launch', channel, features?: string[], headless?: boolean, netLog?: boolean }
  *   helper -> page  { type: 'launched', channel }            | { type: 'error', code }
  *   page -> helper  { type: 'cdp', message: <CDP command> }   (only while a browser is up)
  *   helper -> page  { type: 'cdp', message: <CDP reply or event> }
  *   page -> helper  { type: 'close' }
- *   helper -> page  { type: 'closed' }                        (browser gone, profile deleted)
+ *   helper -> page  { type: 'netlog', data, last }            (the NetLog, in NETLOG_CHUNK pieces)
+ *   helper -> page  { type: 'closed', netLog: boolean }       (browser gone, working folder deleted)
+ * `netlog` messages come only after a close or exit, and only when the launch asked for one;
+ * `closed` follows the last of them, whether Chrome was closed on request or exited by itself.
  * Paths are never sent to the page: they reveal the user's name. The browser also closes when the
  * connection ends.
  */
@@ -32,6 +35,8 @@ import { FEATURE_SWITCHES } from './chrome.js';
 export const HELPER_PROTOCOL = 1;
 export const AUTH_TIMEOUT_MS = 3000;
 export const PRE_AUTH_MAX_BYTES = 4096;
+/** NetLog text per message; keeps any one WebSocket frame modest. */
+export const NETLOG_CHUNK = 1024 * 1024;
 /** Close codes in the private range (4000-4999). */
 export const CLOSE = Object.freeze({ badSecret: 4003, authTimeout: 4008, protocol: 4002, tooBig: 4009 });
 
@@ -42,7 +47,7 @@ const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
  * @property {string} captureOrigin the only Origin accepted, e.g. https://capture.waterfall-tools.com
  * @property {string} secret the pairing secret
  * @property {import('./chrome.js').FoundBrowser[]} browsers what may be launched
- * @property {(options: {executable: string, features: string[], headless: boolean}) => import('./chrome.js').LaunchedBrowser} launch
+ * @property {(options: {executable: string, features: string[], headless: boolean, netLog: boolean}) => import('./chrome.js').LaunchedBrowser} launch
  * @property {string} version
  * @property {number} [port] 0 picks a free port
  * @property {(line: string) => void} [log]
@@ -156,12 +161,23 @@ function serveConnection(socket, head, { secret, browsers, launch, version, log,
     const send = (/** @type {object} */ message) => {
         if (!socket.destroyed) socket.write(encodeText(JSON.stringify(message), null));
     };
+    /** Close the browser if one is up; resolves with its NetLog text, if it wrote one. */
     const closeBrowser = async () => {
-        if (!browser) return;
+        if (!browser) return { netLog: null };
         const b = browser;
         browser = null;
         relay = null;
-        await b.close();
+        return b.close();
+    };
+    /** Hand the page the NetLog (if any), then report the browser gone. */
+    const reportClosed = (/** @type {string | null} */ netLog) => {
+        if (netLog !== null) {
+            const pieces = Math.max(1, Math.ceil(netLog.length / NETLOG_CHUNK));
+            for (let i = 0; i < pieces; i++) {
+                send({ type: 'netlog', data: netLog.slice(i * NETLOG_CHUNK, (i + 1) * NETLOG_CHUNK), last: i === pieces - 1 });
+            }
+        }
+        send({ type: 'closed', netLog: netLog !== null });
     };
     const finish = (/** @type {number} */ code, /** @type {string} */ reason) => {
         if (ended) return browserGone;
@@ -171,7 +187,8 @@ function serveConnection(socket, head, { secret, browsers, launch, version, log,
         new DataView(payload.buffer).setUint16(0, code);
         payload.set(Buffer.from(reason), 2);
         if (!socket.destroyed) socket.end(encodeFrame(OPCODE.CLOSE, payload, null));
-        browserGone = closeBrowser().finally(onEnd);
+        // The page is gone, so a NetLog has nowhere to go: it is deleted with the working folder.
+        browserGone = closeBrowser().then(() => {}).finally(onEnd);
         return browserGone;
     };
 
@@ -203,7 +220,7 @@ function serveConnection(socket, head, { secret, browsers, launch, version, log,
                 const features = Array.isArray(message.features) ? message.features : [];
                 if (!features.every((f) => typeof f === 'string' && Object.hasOwn(FEATURE_SWITCHES, f))) return send({ type: 'error', code: 'unknown-feature' });
                 try {
-                    browser = launch({ executable: found.path, features: /** @type {string[]} */ (features), headless: message.headless === true });
+                    browser = launch({ executable: found.path, features: /** @type {string[]} */ (features), headless: message.headless === true, netLog: message.netLog === true });
                 } catch {
                     return send({ type: 'error', code: 'launch-failed' });
                 }
@@ -215,11 +232,13 @@ function serveConnection(socket, head, { secret, browsers, launch, version, log,
                     const out = thisRelay.fromBrowser(text);
                     if (out !== null) send({ type: 'cdp', message: JSON.parse(out) });
                 });
-                thisBrowser.exited.then(() => {
+                thisBrowser.exited.then(({ netLog }) => {
+                    // Chrome exited by itself (a crash, or the user closed its window).
                     if (browser === thisBrowser) {
                         browser = null;
                         relay = null;
-                        send({ type: 'closed' });
+                        log('the browser exited');
+                        reportClosed(netLog);
                     }
                 });
                 log(`launched Chrome ${found.channel}${features.length ? ` with ${features.join(', ')}` : ''}`);
@@ -233,9 +252,9 @@ function serveConnection(socket, head, { secret, browsers, launch, version, log,
                 return;
             }
             case 'close': {
-                await closeBrowser();
-                log('closed the browser');
-                return send({ type: 'closed' });
+                const { netLog } = await closeBrowser();
+                log(`closed the browser${netLog !== null ? `, NetLog ${netLog.length.toLocaleString()} characters` : ''}`);
+                return reportClosed(netLog);
             }
             default:
                 return send({ type: 'error', code: 'unknown-message' });

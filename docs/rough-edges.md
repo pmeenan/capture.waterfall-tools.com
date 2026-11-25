@@ -37,6 +37,30 @@ a stock, enforcing device.
 
 ---
 
+## RE-024: An unread fetch() body never reports loadingFinished  (2026-11-24, status: open)
+
+**Environment.** Chrome stable 157.0.8103.79, headless, Windows 11, launched on the debugging pipe
+with a fresh profile. Controlled test page (`tests/helpers/test-pages.js`, `/late-fetch`).
+
+**Observed.** A page called `fetch('/slow?ms=1500')` after its load event and never read the body.
+`Network.requestWillBeSent` arrived at once. `responseReceived` and `dataReceived` arrived when the
+response came, 1.5 s later. Then nothing: no `loadingFinished` and no `loadingFailed` in the
+following 6+ seconds. The response was complete on the wire. With `.then((r) => r.text())` added,
+`loadingFinished` came straight after the data.
+
+**Expected.** A finished response reported as finished, whether or not the page reads it.
+
+**Impact.**
+- Under D-028 such a request stays "in flight" until it passes the 10 s long-request cutoff. A page
+  that fires a request and ignores the reply (beacon-like `fetch` calls) therefore ends about 10 s
+  later than it should, not 2 s after the response.
+- The run is correct but slow, and the request's end time in the capture is missing.
+- Not mitigated yet. Possible fixes:
+  - treat a response whose received bytes reach its `Content-Length` as finished;
+  - take request ends from the trace's netlog events, which this capture already records.
+- The controlled page reads its body so that the test pins down the D-028 rule itself.
+- Not tested on other channels or on Android.
+
 ## RE-023: Cloudflare injects its Web Analytics beacon into both sites  (2026-11-24, status: fixed)
 
 **Environment.** Both sites run behind Cloudflare: waterfall-tools.com is proxied to nginx on the

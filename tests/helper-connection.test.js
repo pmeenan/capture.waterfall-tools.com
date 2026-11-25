@@ -199,7 +199,7 @@ describe('after pairing', () => {
     it('launches, runs CDP through the relay envelope, and closes the browser', async () => {
         const { connection, ws } = await paired();
         const launched = connection.launch({ channel: 'stable', features: ['socketThrottling'] });
-        expect(ws.last).toEqual({ type: 'launch', channel: 'stable', features: ['socketThrottling'], headless: false });
+        expect(ws.last).toEqual({ type: 'launch', channel: 'stable', features: ['socketThrottling'], headless: false, netLog: false });
         ws.reply({ type: 'launched', channel: 'stable' });
         await launched;
 
@@ -212,9 +212,22 @@ describe('after pairing', () => {
 
         const closing = connection.closeBrowser();
         expect(ws.last).toEqual({ type: 'close' });
-        ws.reply({ type: 'closed' });
-        await closing;
+        ws.reply({ type: 'closed', netLog: false });
+        expect(await closing).toEqual({ netLog: null });
         expect(client.closed).toBe(true); // the CDP client learns the browser is gone
+    });
+
+    it('asks for a NetLog and reassembles it on close', async () => {
+        const { connection, ws } = await paired();
+        const launched = connection.launch({ channel: 'stable', netLog: true });
+        expect(ws.last).toMatchObject({ type: 'launch', netLog: true });
+        ws.reply({ type: 'launched', channel: 'stable' });
+        await launched;
+        const closing = connection.closeBrowser();
+        ws.reply({ type: 'netlog', data: '{"events":[', last: false });
+        ws.reply({ type: 'netlog', data: ']}', last: true });
+        ws.reply({ type: 'closed', netLog: true });
+        expect(await closing).toEqual({ netLog: '{"events":[]}' });
     });
 
     it('turns an error reply into a coded failure', async () => {
