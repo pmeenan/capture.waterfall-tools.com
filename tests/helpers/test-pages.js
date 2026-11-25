@@ -10,6 +10,8 @@
  *   /not-found       a 404 document: a page that loaded, with an error status
  *   /late-fetch      on load, waits 1 s, then fetches /slow?ms=1500 and reads it: the run must wait
  *                    (it reads the body: Chrome reports no loadingFinished for an unread one, RE-024)
+ *   /unread-fetch    like /late-fetch, but never reads the body: Chrome then sends no
+ *                    loadingFinished (RE-024); the run ends once Content-Length bytes arrived
  *   /event-stream    on load, opens an EventSource that never ends: must not hold the run open
  *   /hanging         on load, fetches /hang, which never answers: holds the run only 10 s
  *   /never-quiet     fetches something every 500 ms forever: only the time limit ends it
@@ -48,7 +50,9 @@ export async function startTestPages() {
         const url = new URL(req.url ?? '/', 'http://x');
         log.push(`${url.pathname}${url.search}`);
         const send = (/** @type {number} */ status, /** @type {string} */ type, /** @type {string | Buffer} */ body) => {
-            res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
+            // An explicit length, as most servers send for a small response: without one Node
+            // switches to chunked encoding, and RE-024's mitigation has nothing to compare against.
+            res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store', 'content-length': String(Buffer.byteLength(body)) });
             res.end(body);
         };
         switch (url.pathname) {
@@ -63,6 +67,8 @@ export async function startTestPages() {
             case '/not-found': return send(404, 'text/html', page('not found'));
             case '/late-fetch':
                 return send(200, 'text/html', page('late fetch', '', "addEventListener('load', () => setTimeout(() => fetch('/slow?ms=1500').then((r) => r.text()), 1000));"));
+            case '/unread-fetch':
+                return send(200, 'text/html', page('unread fetch', '', "addEventListener('load', () => setTimeout(() => fetch('/slow?ms=1500'), 1000));"));
             case '/slow': {
                 const ms = Math.min(Number(url.searchParams.get('ms')) || 0, 30000);
                 const timer = setTimeout(() => { held.delete(res); send(200, 'text/plain', 'slow'); }, ms);

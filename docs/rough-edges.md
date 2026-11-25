@@ -37,7 +37,7 @@ a stock, enforcing device.
 
 ---
 
-## RE-024: An unread fetch() body never reports loadingFinished  (2026-11-24, status: open)
+## RE-024: An unread fetch() body never reports loadingFinished  (2026-11-24, status: worked-around)
 
 **Environment.** Chrome stable 157.0.8103.79, headless, Windows 11, launched on the debugging pipe
 with a fresh profile. Controlled test page (`tests/helpers/test-pages.js`, `/late-fetch`).
@@ -55,11 +55,20 @@ following 6+ seconds. The response was complete on the wire. With `.then((r) => 
   that fires a request and ignores the reply (beacon-like `fetch` calls) therefore ends about 10 s
   later than it should, not 2 s after the response.
 - The run is correct but slow, and the request's end time in the capture is missing.
-- Not mitigated yet. Possible fixes:
-  - treat a response whose received bytes reach its `Content-Length` as finished;
-  - take request ends from the trace's netlog events, which this capture already records.
-- The controlled page reads its body so that the test pins down the D-028 rule itself.
+- The controlled page `/late-fetch` reads its body, so that test pins down the D-028 rule itself.
 - Not tested on other channels or on Android.
+
+**Worked around, same day.** `site/src/capture/page-load.js` counts `Network.dataReceived` bytes.
+Once they reach the response's `Content-Length`, the request stops holding the run open, and the
+capture marks its end `endInferred`. A real `loadingFinished` that comes later replaces the
+inferred end. The comparison takes whichever is larger, decoded or encoded bytes, so plain and
+compressed bodies both reach the length.
+
+The controlled page `/unread-fetch` now ends 2 s after its last byte instead of 10 s later.
+Responses with no `Content-Length` (chunked) still fall back to the 10 s cutoff. Two small
+consequences:
+- Node's test server only sends a length when told to, which is why the test pages set one.
+- Taking ends from the trace's netlog events remains the fuller fix.
 
 ## RE-023: Cloudflare injects its Web Analytics beacon into both sites  (2026-11-24, status: fixed)
 

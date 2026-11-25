@@ -93,9 +93,20 @@ describe.skipIf(!chrome)('page-load pipeline against real Chrome', () => {
         expect(r.ending.reason).toBe(ENDING.completed);
         const slow = r.requests.find((q) => q.url.includes('/slow'));
         expect(slow?.endMs).toBeDefined();
+        expect(slow?.endInferred).toBeUndefined(); // a body that was read gets the real end
         const end = /** @type {number} */ (slow?.endMs) + QUIET_MS;
         expect(r.timings.endMs).toBeGreaterThanOrEqual(end);
         expect(r.timings.endMs).toBeLessThan(end + SLACK_MS);
+    }, 30000);
+
+    it('treats an unread response as finished once all its bytes arrived (RE-024)', async () => {
+        const r = await load(pages.url('/unread-fetch'));
+        expect(r.ending.reason).toBe(ENDING.completed);
+        const slow = r.requests.find((q) => q.url.includes('/slow'));
+        expect(slow?.endInferred).toBe(true);
+        const end = /** @type {number} */ (slow?.endMs) + QUIET_MS;
+        expect(r.timings.endMs).toBeGreaterThanOrEqual(end);
+        expect(r.timings.endMs).toBeLessThan(end + SLACK_MS); // not the 10 s cutoff
     }, 30000);
 
     it('is not held open by an event stream', async () => {

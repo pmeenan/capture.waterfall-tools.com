@@ -52,6 +52,8 @@ const STREAMING_TYPES = new Set(['WebSocket', 'EventSource']);
  * @property {number} [status]
  * @property {string} [error]
  * @property {boolean} [fromCache]
+ * @property {boolean} [endInferred] ended when all of its Content-Length had arrived, because Chrome
+ *           never reported the end: the page did not read the body (RE-024)
  */
 
 /**
@@ -114,7 +116,7 @@ export async function runPageLoad({ client, clock, url, signal, timeLimitMs = TI
 function trackLoad({ client, sessionId, now }) {
     let origin = now();
     /** Requests in flight, by request id: a redirect reuses the id, so a counter would drift. */
-    /** @type {Map<string, {startMs: number, type: string, streaming: boolean, entry: CapturedRequest}>} */
+    /** @type {Map<string, {startMs: number, type: string, streaming: boolean, entry: CapturedRequest, contentLength?: number, received: number, receivedEncoded: number}>} */
     const open = new Map();
     /** @type {CapturedRequest[]} */
     const requests = [];
@@ -172,6 +174,8 @@ function trackLoad({ client, sessionId, now }) {
                     type: entry.type,
                     streaming: STREAMING_TYPES.has(entry.type),
                     entry,
+                    received: 0,
+                    receivedEncoded: 0,
                 });
                 return;
             }
@@ -185,11 +189,34 @@ function trackLoad({ client, sessionId, now }) {
                 const request = open.get(params.requestId);
                 if (!request) return;
                 request.entry.status = params.response?.status;
+                request.contentLength = contentLength(params.response?.headers);
                 // An event stream fetched as an ordinary request is recognised by its response.
                 if (String(params.response?.mimeType ?? '').toLowerCase() === 'text/event-stream') request.streaming = true;
                 return;
             }
+            case 'Network.dataReceived': {
+                // Chrome reports no loadingFinished for a response whose body the page never reads
+                // (RE-024). When every byte its Content-Length announced has arrived, the response
+                // is complete on the wire, so it stops holding the run open. Compressed bodies count
+                // by encoded bytes, plain ones by decoded bytes; whichever reaches the length first.
+                const request = open.get(params.requestId);
+                if (!request || request.contentLength === undefined) return;
+                request.received += Number(params.dataLength) || 0;
+                request.receivedEncoded += Number(params.encodedDataLength) || 0;
+                if (Math.max(request.received, request.receivedEncoded) >= request.contentLength) {
+                    request.entry.endInferred = true;
+                    finish(params.requestId);
+                }
+                return;
+            }
             case 'Network.loadingFinished':
+                // An inferred end is replaced by the real one if it comes after all.
+                if (byId.get(params.requestId)?.endInferred && !open.has(params.requestId)) {
+                    const entry = /** @type {CapturedRequest} */ (byId.get(params.requestId));
+                    delete entry.endInferred;
+                    entry.endMs = state.elapsed();
+                    return;
+                }
                 finish(params.requestId);
                 return;
             case 'Network.loadingFailed':
@@ -302,4 +329,20 @@ function base64ToBytes(b64) {
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
+}
+
+/**
+ * The Content-Length of a response, if it declared one. CDP header names keep the server's case.
+ * @param {Record<string, string> | undefined} headers
+ * @returns {number | undefined}
+ */
+function contentLength(headers) {
+    if (!headers) return undefined;
+    for (const [name, value] of Object.entries(headers)) {
+        if (name.toLowerCase() === 'content-length') {
+            const n = Number(String(value).trim());
+            return Number.isSafeInteger(n) && n >= 0 ? n : undefined;
+        }
+    }
+    return undefined;
 }
