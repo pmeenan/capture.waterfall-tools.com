@@ -161,16 +161,20 @@ are committed by the human like everything else.
 
 ## Current status
 
-Milestone **M1 (foundation)** is done: CI is green on GitHub and the site is
-live at capture.waterfall-tools.com since 2026-11-24. Two outside reviews on
-2026-11-24 led to five decisions (D-027 isolation corrections, D-028 the
-end-of-load rule, D-029 waterfall-tools as a submodule, D-030 local
-addresses through the helper, D-031 `Runtime.evaluate` kept for every
-runner) and to plan changes: M2 also takes a first
-result into the embedded viewer, is verified against controlled test pages,
-and gains a minimal diagnostics log and a pinned Chrome in CI; spike S5 ran
-for Google Drive before M3 and needs no proxy; the helper's adb gate is designed in M3;
-a desktop video timing spike precedes M5. Next is M2. Open: the full
-artifact format, the viewer's share origin (D-036: capture stays local), and where cookie-deletion consent is held (D-027). See
+Milestone **M1 (foundation)** is done, and the site is live at
+capture.waterfall-tools.com. **M2 is in progress**, and most of it is built:
+- the helper: pairing, guards, relay, Chrome on the pipe, the NetLog;
+- the page's connection to it, and the capture pipeline ending runs by D-028;
+- the controlled test pages, the run UI and the embedded viewer;
+- the diagnostics log, and a pinned Chrome in CI.
+
+Still open in M2, all waiting on the owner:
+- the minimal artifact format and the viewer's parser for it (Q5, D-011);
+- the first CI run of the pinned-Chrome job (needs a push);
+- committing RE-026's fix in the submodule;
+- the dev bridge, after the adb gate (D-023).
+
+Also open: the full artifact format, the viewer's share origin (D-036:
+capture stays local), and where cookie-deletion consent is held (D-027). See
 [docs/plan.md](docs/plan.md). Keep this paragraph short and current when
 plan.md milestone status changes (rule 4).
