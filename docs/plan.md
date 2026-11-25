@@ -463,6 +463,10 @@ Progress:
   embedded viewer without leaving the machine. The console had no errors,
   and no temporary folder was left.
 
+  A failed run's log names the failing step: `tests/helper-run-failure.test.js`
+  fails a run at three different steps, and each time the log ends with that
+  step and then the error, with Chrome still closed.
+
   Two caveats:
   - Until the viewer parses the result zip, the page posts only the
     gzipped trace.
@@ -473,8 +477,6 @@ Progress:
   Still to do for M2:
   - the viewer's parser for the result zip, then posting the zip itself;
   - scoping the capture to the tested page;
-  - the diagnostics log saving its run's failing step (only the UI paths
-    are exercised so far);
   - the dev-bridge mode;
   - a pinned Chrome in Linux CI;
   - checking that the real-Chrome tests run in CI.
