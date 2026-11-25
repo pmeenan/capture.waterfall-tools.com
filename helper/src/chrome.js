@@ -118,6 +118,10 @@ export function launchArgs({ profileDir, headless, platform, features, netLogPat
         `--user-data-dir=${profileDir}`,
         '--no-first-run',
         '--no-default-browser-check',
+        // Keep Chrome's own traffic (component and extension updates, and the like) out of the
+        // test: on a fresh profile it starts at launch and lands in the trace (RE-025).
+        '--disable-background-networking',
+        '--disable-component-update',
     ];
     // A fresh profile on macOS may ask the login Keychain for Chrome's storage key, and that
     // dialog appears on whoever's screen is active (RE-022).

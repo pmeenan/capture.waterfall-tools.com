@@ -37,6 +37,51 @@ a stock, enforcing device.
 
 ---
 
+## RE-026: waterfall-tools lists a subresource twice when converting a browser-level trace  (2026-11-24, status: open)
+
+**Environment.** A browser-level trace with the `netlog` category, from the capture pipeline
+(`site/src/capture/page-load.js`, `TRACE_CATEGORIES`). Chrome stable 157.0.8103.79, headless and
+headed, Windows 11. Converted with the published waterfall-tools 0.4.0 (`loadBuffer`, `getHar`).
+
+**Observed.** The controlled page `/simple` makes four requests. The test server logged four, and
+the CDP `Network` events showed four. The HAR converted from the trace has five entries: one CSS
+file appears twice. A real `https://example.com/` load showed the same thing for its one script.
+The trace itself records that stylesheet once: a single netlog `URL_REQUEST` source (`CORS_REQUEST`
+/ `REQUEST_ALIVE` / `URL_REQUEST_START_JOB` with one id) and a single `devtools.timeline`
+`ResourceSendRequest`.
+
+**Expected.** One HAR entry per request. waterfall-tools' rules (its `AGENTS.md`, "Chrome Trace")
+take netlog as the request source and synthesize timeline requests only for URLs netlog does not
+cover.
+
+**Impact.** The embedded viewer shows a duplicate row for some subresources of every capture. The
+fix belongs to waterfall-tools' trace parser, probably its "URL already covered by a netlog
+request" gate. Not investigated further there yet.
+
+## RE-025: Chrome's start-up traffic lands in the trace unless background networking is off  (2026-11-24, status: worked-around)
+
+**Environment.** Chrome stable 157.0.8103.79, headed, Windows 11, launched by the helper's
+`launchBrowser` with a fresh profile; a browser-level trace started straight after launch, as the
+helper's runs do.
+
+**Observed.** A load of `https://example.com/` converted to 7 HAR entries instead of 3. Four were
+Chrome's own downloads, triggered at first launch of a fresh profile:
+- component updates (a `diffgen-puffin` update);
+- Chrome Web Store extension `.crx` downloads through `redirector.gvt1.com`, including a 302 and a
+  regional `*.gvt1.com` mirror.
+
+One of those URLs carried the machine's public IP address in its query string. Started 3 s after
+launch, the trace held none of it: the traffic happens at start-up. Headless runs on loopback test
+pages showed none either.
+
+**Fix.** The helper's fixed switches now include `--disable-background-networking` and
+`--disable-component-update`, as WebPageTest's agent uses. With them, two headed repeats of the
+same load gave exactly 3 entries and no Google update traffic.
+
+**Impact.** Fixed for the helper, which controls its switches. The extension runner tests in the
+user's own browser and cannot do this, so its traces may hold such traffic. Android can apply
+switches only through the command-line file (RE-005, RE-020).
+
 ## RE-024: An unread fetch() body never reports loadingFinished  (2026-11-24, status: worked-around)
 
 **Environment.** Chrome stable 157.0.8103.79, headless, Windows 11, launched on the debugging pipe

@@ -474,9 +474,15 @@ Progress:
     which show in the waterfall. That is the scoping problem RE-009
     recorded for the NetLog.
 
+  **Scoping** (2026-11-24): the extra rows in that waterfall were Chrome's
+  own start-up downloads. The helper now launches with
+  `--disable-background-networking --disable-component-update` (RE-025).
+  What remains is a converter problem: waterfall-tools lists some
+  subresources twice (RE-026).
+
   Still to do for M2:
   - the viewer's parser for the result zip, then posting the zip itself;
-  - scoping the capture to the tested page;
+  - fixing RE-026 in waterfall-tools' trace parser;
   - the dev-bridge mode;
   - a pinned Chrome in Linux CI;
   - checking that the real-Chrome tests run in CI.

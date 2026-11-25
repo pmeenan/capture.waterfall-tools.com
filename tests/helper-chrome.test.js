@@ -41,6 +41,7 @@ describe('launch switches', () => {
     it('always uses the pipe and the throwaway profile, and adds only named features', () => {
         const args = launchArgs({ profileDir: '/tmp/p', headless: false, platform: 'linux', features: ['socketThrottling'] });
         expect(args).toEqual(['--remote-debugging-pipe', '--user-data-dir=/tmp/p', '--no-first-run', '--no-default-browser-check',
+            '--disable-background-networking', '--disable-component-update',
             '--enable-features=SocketLayerNetworkThrottling', 'about:blank']);
         expect(launchArgs({ profileDir: '/p', headless: true, platform: 'darwin', features: [] })).toEqual(expect.arrayContaining(['--use-mock-keychain', '--headless=new']));
         expect(() => launchArgs({ profileDir: '/p', headless: false, platform: 'linux', features: ['--disable-web-security'] })).toThrow(/unknown feature/);
